@@ -1,0 +1,105 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --canvas: #0b0b0f;
+    --panel: #15151b;
+    --glass: rgba(20, 20, 25, 0.65);
+    --text: #f5f5f7;
+    --muted-text: rgba(245, 245, 247, 0.62);
+    --hairline: rgba(255, 255, 255, 0.08);
+    --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    --accent: #e8a33d;
+    --accent-hover: #f2b861;
+    --accent-pressed: #c98524;
+    --accent-tint: rgba(232, 163, 61, 0.14);
+    --accent-ring: rgba(232, 163, 61, 0.4);
+    --accent-border: rgba(232, 163, 61, 0.3);
+    --accent-glow: 0 0 40px rgba(232, 163, 61, 0.14);
+    --accent-contrast: #2b1902;
+    --selection: rgba(232, 163, 61, 0.18);
+    --ghost-hover: rgba(255, 255, 255, 0.06);
+    --radius-nav: 24px;
+    --radius-card: 16px;
+    --radius-inner: 12px;
+    --radius-pill: 9999px;
+    --ease-apple: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: var(--canvas);
+    color: var(--text);
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+      "SF Pro Display", system-ui, sans-serif;
+    font-feature-settings: "ss01", "cv11";
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background-color: var(--selection);
+    color: var(--text);
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  .glass-surface {
+    background: var(--glass);
+    border: 1px solid var(--hairline);
+    box-shadow: var(--inner-highlight), 0 1px 2px rgba(0, 0, 0, 0.12),
+      0 10px 30px rgba(0, 0, 0, 0.24);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
+
+  .top-glass-band {
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: 126px;
+    pointer-events: none;
+    background: linear-gradient(
+      180deg,
+      rgba(8, 8, 12, 0.62) 0%,
+      rgba(8, 8, 12, 0.4) 42%,
+      rgba(8, 8, 12, 0.16) 74%,
+      rgba(8, 8, 12, 0) 100%
+    );
+    backdrop-filter: blur(26px) saturate(112%);
+    -webkit-backdrop-filter: blur(26px) saturate(112%);
+    mask-image: linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 1) 0%,
+      rgba(0, 0, 0, 0.96) 72%,
+      rgba(0, 0, 0, 0) 100%
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

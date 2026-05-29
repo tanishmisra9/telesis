@@ -1,0 +1,7 @@
+node_modules/
+dist/
+backend/app/data/telesis.db
+backend/app/data/ff1_cache/
+.env
+__pycache__/
+.venv
