@@ -1,9 +1,23 @@
+import { useEffect, useMemo, useState } from "react";
 import { resolveTeamColor } from "../design/teamColors";
 
 interface TeamBadgeProps {
   team: string;
   size?: "sm" | "md";
 }
+
+const SLUG_OVERRIDES: Record<string, string> = {
+  "red bull racing": "red-bull-racing",
+  ferrari: "ferrari",
+  mercedes: "mercedes",
+  mclaren: "mclaren",
+  "aston martin": "aston-martin",
+  alpine: "alpine",
+  williams: "williams",
+  rb: "rb",
+  "kick sauber": "kick-sauber",
+  "haas f1 team": "haas-f1-team",
+};
 
 const SLUG_TO_MARK: Record<string, string> = {
   "red bull racing": "RBR",
@@ -36,34 +50,42 @@ function markForTeam(team: string): string {
     .join("");
 }
 
+function slugForTeam(team: string): string {
+  const key = team.trim().toLowerCase();
+  if (SLUG_OVERRIDES[key]) {
+    return SLUG_OVERRIDES[key];
+  }
+  return key
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
+}
+
 export function TeamBadge({ team, size = "md" }: TeamBadgeProps) {
   const color = resolveTeamColor(team);
   const isSmall = size === "sm";
+  const [logoFailed, setLogoFailed] = useState(false);
+  const logoSrc = useMemo(() => `/assets/logos/${slugForTeam(team)}.svg`, [team]);
+  useEffect(() => {
+    setLogoFailed(false);
+  }, [logoSrc]);
+  const side = isSmall ? "h-8 w-8 rounded-[10px]" : "h-11 w-11 rounded-[12px]";
+  const monogramSize = isSmall ? "text-[9px]" : "text-[11px]";
   return (
     <div
-      className={`relative overflow-hidden rounded-[12px] border ${
-        isSmall ? "h-8 w-8" : "h-11 w-11"
-      }`}
-      style={{ borderColor: `${color}aa`, backgroundColor: `${color}26` }}
+      className={`relative flex items-center justify-center overflow-hidden border ${side}`}
+      style={{ borderColor: `${color}aa`, backgroundColor: color }}
       aria-label={`${team} badge`}
     >
-      <div
-        className="absolute inset-y-0 left-0 w-1/3"
-        style={{ backgroundColor: `${color}cc` }}
-        aria-hidden
-      />
-      <div
-        className="absolute inset-x-0 top-0 h-[2px]"
-        style={{ backgroundColor: `${color}dd` }}
-        aria-hidden
-      />
-      <div
-        className={`relative z-10 flex h-full items-center justify-center font-semibold tracking-wide text-white ${
-          isSmall ? "text-[9px]" : "text-[11px]"
-        }`}
-      >
-        {markForTeam(team)}
-      </div>
+      {!logoFailed && (
+        <img
+          src={logoSrc}
+          alt=""
+          className="h-[68%] w-[68%] object-contain"
+          onError={() => setLogoFailed(true)}
+        />
+      )}
+      {logoFailed && <span className={`font-semibold tracking-wide text-white ${monogramSize}`}>{markForTeam(team)}</span>}
     </div>
   );
 }
