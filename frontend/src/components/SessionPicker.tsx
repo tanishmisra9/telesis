@@ -3,7 +3,24 @@ import { getSchedule } from "../api/client";
 import { useSessionStore } from "../store/sessionStore";
 import type { ScheduleEntry, SessionSelection } from "../api/types";
 
-const DEFAULT_YEAR = 2024;
+const DEFAULT_YEAR = 2026;
+const STANDARD_ORDER = ["FP1", "FP2", "FP3", "Q", "R"] as const;
+const SPRINT_ORDER = ["FP1", "SQ", "S", "Q", "R"] as const;
+
+function isMacPlatform(): boolean {
+  const platform = navigator.platform?.toLowerCase() ?? "";
+  const userAgentDataPlatform =
+    ((navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? "").toLowerCase();
+  return platform.includes("mac") || userAgentDataPlatform.includes("mac");
+}
+
+function orderSessions(sessionTypes: string[]): string[] {
+  const normalized = sessionTypes.map((item) => item.toUpperCase());
+  const primary = normalized.includes("SQ") && normalized.includes("S") ? SPRINT_ORDER : STANDARD_ORDER;
+  const ordered = primary.filter((item) => normalized.includes(item));
+  const extras = normalized.filter((item) => !ordered.includes(item as (typeof primary)[number]));
+  return [...ordered, ...extras];
+}
 
 export function SessionPicker() {
   const loadSession = useSessionStore((s) => s.loadSession);
@@ -15,14 +32,20 @@ export function SessionPicker() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
-  const [recent, setRecent] = useState<SessionSelection[]>([]);
+  const [expandedRounds, setExpandedRounds] = useState<Set<number>>(new Set());
+  const [shortcutText, setShortcutText] = useState("Ctrl K");
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    setShortcutText(isMacPlatform() ? "⌘K" : "Ctrl K");
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     void getSchedule(year).then((resp) => {
-      if (!cancelled) setRounds(resp.rounds);
+      if (!cancelled) {
+        setRounds(resp.rounds);
+      }
     });
     return () => {
       cancelled = true;
@@ -30,238 +53,197 @@ export function SessionPicker() {
   }, [year]);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("telesis-recent-sessions");
-      if (raw) {
-        const parsed = JSON.parse(raw) as SessionSelection[];
-        setRecent(parsed.slice(0, 8));
-      }
-    } catch {
-      setRecent([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    const handleOpen = () => {
-      setOpen(true);
-      requestAnimationFrame(() => inputRef.current?.focus());
-    };
-    const handleClose = () => setOpen(false);
     const keyHandler = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        setOpen((v) => !v);
+        setOpen((value) => !value);
+      }
+      if (event.key === "Escape") {
+        setOpen(false);
       }
     };
-    window.addEventListener("telesis:open-picker", handleOpen);
-    window.addEventListener("telesis:close-picker", handleClose);
     window.addEventListener("keydown", keyHandler);
-    return () => {
-      window.removeEventListener("telesis:open-picker", handleOpen);
-      window.removeEventListener("telesis:close-picker", handleClose);
-      window.removeEventListener("keydown", keyHandler);
-    };
+    return () => window.removeEventListener("keydown", keyHandler);
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [open]);
+
+  const years = useMemo(() => Array.from({ length: 8 }, (_, index) => 2026 - index), []);
   const label = useMemo(() => {
     if (!selection) return "Select session";
-    const event = rounds.find((r) => r.round === selection.round)?.event_name ?? `Round ${selection.round}`;
+    const event = rounds.find((entry) => entry.round === selection.round)?.event_name ?? `Round ${selection.round}`;
     return `${event} ${selection.year} · ${selection.sessionType.toUpperCase()}`;
   }, [selection, rounds]);
 
-  const years = Array.from({ length: 8 }, (_, i) => 2026 - i);
-  const entries = useMemo(() => {
-    const base = rounds.flatMap((round) =>
-      round.session_types.map((sessionType) => ({
-        year,
-        round: round.round,
-        event_name: round.event_name,
-        country: round.country ?? "",
-        event_date: round.event_date ?? "",
-        sessionType,
-        searchKey: `${year} ${round.round} ${round.event_name} ${round.country ?? ""} ${sessionType}`.toLowerCase(),
-      })),
-    );
-    if (!search.trim()) {
-      const recentKeys = new Set(
-        recent.map((item) => `${item.year}-${item.round}-${item.sessionType.toUpperCase()}`),
-      );
-      return [
-        ...recent
-          .map((item) => {
-            const found = base.find(
-              (entry) =>
-                entry.year === item.year &&
-                entry.round === item.round &&
-                entry.sessionType.toUpperCase() === item.sessionType.toUpperCase(),
-            );
-            return found ?? null;
-          })
-          .filter(Boolean),
-        ...base.filter(
-          (entry) =>
-            !recentKeys.has(`${entry.year}-${entry.round}-${entry.sessionType.toUpperCase()}`),
-        ),
-      ] as typeof base;
-    }
+  const filteredRounds = useMemo(() => {
     const tokens = search.toLowerCase().split(/\s+/).filter(Boolean);
-    return base
-      .map((entry) => {
-        let score = 0;
-        for (const token of tokens) {
-          if (entry.searchKey.includes(token)) score += 2;
-          if (entry.event_name.toLowerCase().startsWith(token)) score += 2;
-          if (entry.sessionType.toLowerCase() === token) score += 1;
+    if (!tokens.length) {
+      return rounds.map((round) => ({ ...round, ordered_sessions: orderSessions(round.session_types) }));
+    }
+    return rounds
+      .map((round) => {
+        const orderedSessions = orderSessions(round.session_types);
+        const haystack = `${year} ${round.round} ${round.event_name} ${round.country ?? ""} ${orderedSessions.join(" ")}`.toLowerCase();
+        const matchingSessions = orderedSessions.filter((sessionType) =>
+          tokens.every((token) => `${haystack} ${sessionType.toLowerCase()}`.includes(token)),
+        );
+        const roundMatches = tokens.every((token) => haystack.includes(token));
+        if (!roundMatches && !matchingSessions.length) {
+          return null;
         }
-        return { entry, score };
+        return {
+          ...round,
+          ordered_sessions: matchingSessions.length ? matchingSessions : orderedSessions,
+        };
       })
-      .filter((row) => row.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .map((row) => row.entry);
-  }, [rounds, search, recent, year]);
+      .filter((round): round is ScheduleEntry & { ordered_sessions: string[] } => Boolean(round));
+  }, [rounds, search, year]);
 
   useEffect(() => {
+    setExpandedRounds((current) => {
+      const next = new Set<number>();
+      for (const round of filteredRounds) {
+        if (current.has(round.round)) next.add(round.round);
+      }
+      if (!search.trim()) return next;
+      for (const round of filteredRounds) {
+        next.add(round.round);
+      }
+      return next;
+    });
     setActiveIndex(0);
-  }, [search, year]);
+  }, [filteredRounds, search]);
+
+  const visibleSessions = useMemo(
+    () =>
+      filteredRounds.flatMap((round) =>
+        (expandedRounds.has(round.round) ? round.ordered_sessions : []).map((sessionType) => ({
+          round: round.round,
+          sessionType,
+        })),
+      ),
+    [expandedRounds, filteredRounds],
+  );
 
   const loadChoice = (next: SessionSelection) => {
     void loadSession(next);
     setOpen(false);
     setSearch("");
-    const updated = [
-      next,
-      ...recent.filter(
-        (item) =>
-          !(
-            item.year === next.year &&
-            item.round === next.round &&
-            item.sessionType.toUpperCase() === next.sessionType.toUpperCase()
-          ),
-      ),
-    ].slice(0, 8);
-    setRecent(updated);
-    try {
-      localStorage.setItem("telesis-recent-sessions", JSON.stringify(updated));
-    } catch {
-      // no-op
-    }
   };
 
   return (
     <div className="relative">
       <button
-        ref={triggerRef}
         type="button"
         className="rounded-pill border border-line bg-surface-3 px-3 py-1.5 text-label text-primary focus-visible:ring-2 focus-visible:ring-accent-ring"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen((value) => !value)}
       >
         <span className="mr-2 inline-block h-2 w-2 rounded-full bg-accent" />
-        {label} <span className="ml-2 text-micro text-muted">Cmd/Ctrl+K</span>
+        {label} <span className="ml-2 text-micro text-muted">{shortcutText}</span>
       </button>
       {open && (
-        <div className="absolute right-0 top-10 z-40 w-[680px] max-w-[calc(100vw-1rem)] rounded-card border border-line bg-surface-glass p-3 shadow-panel backdrop-blur-modal">
-          <div className="mb-3">
-            <input
-              ref={inputRef}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "ArrowDown") {
-                  event.preventDefault();
-                  setActiveIndex((idx) => Math.min(entries.length - 1, idx + 1));
-                }
-                if (event.key === "ArrowUp") {
-                  event.preventDefault();
-                  setActiveIndex((idx) => Math.max(0, idx - 1));
-                }
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  const row = entries[activeIndex];
-                  if (!row) return;
-                  loadChoice({
-                    year: row.year,
-                    round: row.round,
-                    sessionType: row.sessionType,
-                  });
-                }
-              }}
-              placeholder="Search sessions, for example bahrain 2024 race"
-              className="w-full rounded-inner border border-line bg-surface-2 px-3 py-2 text-secondary-body text-primary"
-            />
-          </div>
-          <div className="mb-3 flex gap-1">
-            {years.map((y) => (
+        <div className="absolute right-0 top-10 z-40 w-[520px] max-w-[calc(100vw-1rem)] rounded-card border border-line bg-surface-glass p-3 shadow-panel backdrop-blur-modal">
+          <input
+            ref={inputRef}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowDown") {
+                event.preventDefault();
+                setActiveIndex((index) => Math.min(visibleSessions.length - 1, index + 1));
+              }
+              if (event.key === "ArrowUp") {
+                event.preventDefault();
+                setActiveIndex((index) => Math.max(0, index - 1));
+              }
+              if (event.key === "Enter") {
+                event.preventDefault();
+                const row = visibleSessions[activeIndex];
+                if (!row) return;
+                loadChoice({ year, round: row.round, sessionType: row.sessionType });
+              }
+            }}
+            placeholder="Search for a session"
+            className="w-full rounded-inner border border-line bg-surface-2 px-3 py-2 text-secondary-body text-primary"
+          />
+          <div className="mt-3 flex flex-wrap gap-1">
+            {years.map((item) => (
               <button
-                key={y}
+                key={item}
                 type="button"
                 className={`rounded-pill px-2 py-1 text-caption ${
-                  y === year ? "bg-accent-tint text-accent" : "bg-surface-3 text-secondary"
+                  item === year ? "bg-accent-tint text-accent" : "bg-surface-3 text-secondary"
                 }`}
-                onClick={() => setYear(y)}
+                onClick={() => setYear(item)}
               >
-                {y}
+                {item}
               </button>
             ))}
           </div>
-          <div className="grid max-h-[60vh] gap-3 overflow-y-auto md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-            <div className="space-y-2">
-              {entries.slice(0, 60).map((entry, idx) => (
-                <button
-                  key={`${entry.year}-${entry.round}-${entry.sessionType}-${idx}`}
-                  type="button"
-                  disabled={globalLoading}
-                  onClick={() =>
-                    loadChoice({
-                      year: entry.year,
-                      round: entry.round,
-                      sessionType: entry.sessionType,
-                    })
-                  }
-                  className={`w-full rounded-inner border px-3 py-2 text-left ${
-                    idx === activeIndex
-                      ? "border-accent-border bg-accent-tint"
-                      : "border-line bg-surface-2 hover:border-hairline"
-                  }`}
-                >
-                  <p className="text-label text-primary">
-                    {entry.event_name} <span className="text-secondary">R{entry.round}</span>
-                  </p>
-                  <p className="text-caption text-secondary">
-                    {entry.sessionType} · {entry.year} · {entry.country || "Unknown location"} ·{" "}
-                    {entry.event_date || "Date TBD"}
-                  </p>
-                </button>
-              ))}
-            </div>
-            <div className="rounded-inner border border-line bg-surface-2 p-3">
-              <p className="text-label text-primary">Browse weekend</p>
-              <p className="mt-1 text-caption text-secondary">
-                Select a round, then launch any session in chronological order.
-              </p>
-              <div className="mt-3 max-h-[48vh] space-y-2 overflow-y-auto">
-                {rounds.map((round) => (
-                  <div key={round.round} className="rounded-inner border border-line/70 bg-surface-3 p-2">
-                    <p className="text-caption text-primary">
-                      R{round.round} · {round.event_name}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {round.session_types.map((sessionType) => (
-                        <button
-                          key={`${round.round}-${sessionType}`}
-                          type="button"
-                          onClick={() =>
-                            loadChoice({ year, round: round.round, sessionType })
-                          }
-                          className="rounded-pill bg-surface-1 px-2 py-1 text-caption text-secondary hover:bg-accent-tint hover:text-accent"
-                        >
-                          {sessionType}
-                        </button>
-                      ))}
+          <p className="mt-3 text-caption text-secondary">Pick a round to see its sessions.</p>
+          <div className="mt-2 max-h-[60vh] space-y-2 overflow-y-auto">
+            {filteredRounds.map((round) => {
+              const isExpanded = expandedRounds.has(round.round);
+              return (
+                <article key={round.round} className="rounded-inner border border-line bg-surface-2 p-2.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpandedRounds((current) => {
+                        const next = new Set(current);
+                        if (next.has(round.round)) {
+                          next.delete(round.round);
+                        } else {
+                          next.add(round.round);
+                        }
+                        return next;
+                      })
+                    }
+                    className="flex w-full items-center justify-between text-left"
+                  >
+                    <div>
+                      <p className="text-label text-primary">
+                        R{round.round} {round.event_name}
+                      </p>
+                      <p className="text-caption text-secondary">{round.event_date ?? "Date pending"}</p>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+                    <span className="text-caption text-muted">{isExpanded ? "Hide" : "Show"}</span>
+                  </button>
+                  {isExpanded && (
+                    <div className="mt-2 space-y-1.5">
+                      {round.ordered_sessions.map((sessionType) => {
+                        const sessionIndex = visibleSessions.findIndex(
+                          (item) => item.round === round.round && item.sessionType === sessionType,
+                        );
+                        return (
+                          <button
+                            key={`${round.round}-${sessionType}`}
+                            type="button"
+                            disabled={globalLoading}
+                            onClick={() => loadChoice({ year, round: round.round, sessionType })}
+                            className={`w-full rounded-pill border px-2.5 py-1 text-left text-caption ${
+                              sessionIndex === activeIndex
+                                ? "border-accent-border bg-accent-tint text-accent"
+                                : "border-line bg-surface-3 text-secondary hover:border-hairline"
+                            }`}
+                          >
+                            {sessionType}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+            {!filteredRounds.length && (
+              <p className="rounded-inner border border-line bg-surface-2 p-3 text-caption text-secondary">
+                No rounds matched your search.
+              </p>
+            )}
           </div>
         </div>
       )}
