@@ -174,6 +174,43 @@ export interface ScheduleResponse {
   rounds: ScheduleEntry[];
 }
 
+export interface SeasonConstructorPaceEntry {
+  team: string;
+  pace_rank: number;
+  average_gap_s: number;
+  rounds_sampled: number;
+  rank_trend: Array<number | null>;
+}
+
+export interface SeasonStandingsEntry {
+  position: number;
+  name: string;
+  points: number;
+}
+
+export interface SeasonStandings {
+  constructors: SeasonStandingsEntry[];
+  drivers: SeasonStandingsEntry[];
+}
+
+export interface SeasonRoundSummary {
+  round: number;
+  event_name: string;
+  event_date: string | null;
+  winner: string | null;
+  pole: string | null;
+  session_types: string[];
+}
+
+export interface SeasonOverviewResponse {
+  year: number;
+  total_rounds: number;
+  analyzed_rounds: number;
+  constructors: SeasonConstructorPaceEntry[];
+  standings: SeasonStandings | null;
+  calendar: SeasonRoundSummary[];
+}
+
 export interface DriverResultEntry {
   abbr: string;
   full_name: string | null;

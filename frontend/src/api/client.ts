@@ -6,6 +6,7 @@ import type {
   RaceTraceResponse,
   ResultsResponse,
   ScheduleResponse,
+  SeasonOverviewResponse,
   SessionSelection,
   SpeedTraceResponse,
   StintsResponse,
@@ -101,6 +102,11 @@ export function getInsights(
 export function getSchedule(year: number): Promise<ScheduleResponse> {
   const url = `${API_BASE}/schedule/${year}`;
   return fetchJson<ScheduleResponse>(url);
+}
+
+export function getSeasonOverview(year: number): Promise<SeasonOverviewResponse> {
+  const url = `${API_BASE}/season/${year}/overview`;
+  return fetchJson<SeasonOverviewResponse>(url);
 }
 
 export function getResults(

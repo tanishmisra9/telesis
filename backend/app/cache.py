@@ -100,6 +100,16 @@ def get_row(key: str) -> dict[str, Any] | None:
     return dict(row)
 
 
+def get_rows_for_year(year: int) -> list[dict[str, Any]]:
+    init_db()
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM processed_session WHERE year = ?",
+            (year,),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def get_processed(key: str) -> dict[str, Any] | None:
     return get_row(key)
 

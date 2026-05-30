@@ -155,6 +155,43 @@ class ScheduleResponse(BaseModel):
     rounds: list[ScheduleEntry] = Field(default_factory=list)
 
 
+class SeasonConstructorPaceEntry(BaseModel):
+    team: str
+    pace_rank: float
+    average_gap_s: float
+    rounds_sampled: int
+    rank_trend: list[int | None] = Field(default_factory=list)
+
+
+class SeasonStandingsEntry(BaseModel):
+    position: int
+    name: str
+    points: float
+
+
+class SeasonStandings(BaseModel):
+    constructors: list[SeasonStandingsEntry] = Field(default_factory=list)
+    drivers: list[SeasonStandingsEntry] = Field(default_factory=list)
+
+
+class SeasonRoundSummary(BaseModel):
+    round: int
+    event_name: str
+    event_date: str | None = None
+    winner: str | None = None
+    pole: str | None = None
+    session_types: list[str] = Field(default_factory=list)
+
+
+class SeasonOverviewResponse(BaseModel):
+    year: int
+    total_rounds: int
+    analyzed_rounds: int
+    constructors: list[SeasonConstructorPaceEntry] = Field(default_factory=list)
+    standings: SeasonStandings | None = None
+    calendar: list[SeasonRoundSummary] = Field(default_factory=list)
+
+
 class ProcessSessionResponse(BaseModel):
     key: str
     status: str

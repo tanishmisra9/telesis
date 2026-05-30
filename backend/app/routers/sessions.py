@@ -10,12 +10,13 @@ from app.engine.pipeline import (
     ensure_telemetry_overlay,
     ensure_tyredeg,
 )
-from app.engine.schedule import get_schedule_response
+from app.engine.schedule import get_schedule_response, get_season_overview_response
 from app.engine.speedtrace import build_speedtrace_response
 from app.models import (
     RaceTraceResponse,
     ResultsResponse,
     ScheduleResponse,
+    SeasonOverviewResponse,
     SpeedTraceResponse,
     StintsResponse,
     TelemetryOverlayResponse,
@@ -29,6 +30,12 @@ router = APIRouter(tags=["sessions"])
 def get_schedule(year: int) -> ScheduleResponse:
     payload = get_schedule_response(year)
     return ScheduleResponse.model_validate(payload)
+
+
+@router.get("/season/{year}/overview", response_model=SeasonOverviewResponse)
+def get_season_overview(year: int) -> SeasonOverviewResponse:
+    payload = get_season_overview_response(year)
+    return SeasonOverviewResponse.model_validate(payload)
 
 
 @router.get("/sessions/{year}/{round}/{session_type}/results", response_model=ResultsResponse)

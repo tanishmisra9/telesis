@@ -4,9 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from datetime import date, datetime
+import json
 from typing import Any
 
 import fastf1
+import pandas as pd
+
+from app.cache import get_rows_for_year
 
 _ALL_SESSION_TYPES = ("FP1", "FP2", "FP3", "Q", "SQ", "S", "R")
 _STANDARD_WEEKEND = ("FP1", "FP2", "FP3", "Q", "R")
@@ -100,3 +104,194 @@ def get_schedule_response(year: int) -> dict[str, Any]:
     payload = {"year": year, "rounds": rounds}
     _schedule_cache[year] = payload
     return payload
+
+
+def _driver_name(entry: dict[str, Any]) -> str:
+    return (
+        str(entry.get("full_name") or "").strip()
+        or str(entry.get("abbr") or "").strip()
+        or "Unknown"
+    )
+
+
+def _build_standings(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+    race_rows = [row for row in rows if str(row.get("session_type", "")).upper() == "R"]
+    if not race_rows:
+        return None
+
+    latest = sorted(race_rows, key=lambda item: int(item.get("round", 0)), reverse=True)[0]
+    try:
+        payload = json.loads(latest["results_json"]) if latest.get("results_json") else None
+    except Exception:
+        payload = None
+    if not payload:
+        return None
+
+    drivers = payload.get("drivers") or []
+    if not drivers:
+        return None
+    frame = pd.DataFrame(drivers)
+    if frame.empty:
+        return None
+
+    constructor_points = (
+        frame.groupby("team", dropna=True)["points"].sum(min_count=1).fillna(0.0).reset_index()
+        if "points" in frame.columns
+        else pd.DataFrame(columns=["team", "points"])
+    )
+    constructor_rows = []
+    if not constructor_points.empty:
+        constructor_points = constructor_points.sort_values(by="points", ascending=False).reset_index(drop=True)
+        constructor_rows = [
+            {"position": int(idx + 1), "name": str(row["team"]), "points": float(row["points"])}
+            for idx, row in constructor_points.iterrows()
+        ]
+
+    driver_rows = []
+    if "points" in frame.columns:
+        ranked_drivers = frame.copy()
+        ranked_drivers["points"] = ranked_drivers["points"].fillna(0.0)
+        ranked_drivers = ranked_drivers.sort_values(by="points", ascending=False).reset_index(drop=True)
+        driver_rows = [
+            {
+                "position": int(idx + 1),
+                "name": _driver_name(row.to_dict()),
+                "points": float(row["points"]),
+            }
+            for idx, row in ranked_drivers.iterrows()
+        ]
+
+    if not constructor_rows and not driver_rows:
+        return None
+    return {"constructors": constructor_rows, "drivers": driver_rows}
+
+
+def get_season_overview_response(year: int) -> dict[str, Any]:
+    schedule_payload = get_schedule_response(year)
+    schedule_rounds = schedule_payload.get("rounds", [])
+    rows = get_rows_for_year(year)
+    by_round_and_type: dict[tuple[int, str], dict[str, Any]] = {}
+    for row in rows:
+        round_number = _safe_int(row.get("round"), 0)
+        session_type = str(row.get("session_type") or "").upper()
+        if round_number <= 0 or not session_type:
+            continue
+        by_round_and_type[(round_number, session_type)] = row
+
+    race_rows = [
+        row
+        for row in rows
+        if str(row.get("session_type") or "").upper() == "R" and row.get("pace_json")
+    ]
+    analyzed_rounds = sorted({_safe_int(row.get("round"), 0) for row in race_rows if _safe_int(row.get("round"), 0) > 0})
+
+    pace_by_round: dict[int, list[dict[str, Any]]] = {}
+    for row in race_rows:
+        round_number = _safe_int(row.get("round"), 0)
+        if round_number <= 0:
+            continue
+        try:
+            payload = json.loads(row["pace_json"])
+            constructors = payload.get("constructors") or []
+            if constructors:
+                pace_by_round[round_number] = constructors
+        except Exception:
+            continue
+
+    round_numbers = [int(item["round"]) for item in schedule_rounds]
+    team_rank_samples: dict[str, list[int]] = {}
+    team_gap_samples: dict[str, list[float]] = {}
+    team_trends: dict[str, list[int | None]] = {}
+
+    for round_number in round_numbers:
+        constructors = pace_by_round.get(round_number) or []
+        for idx, row in enumerate(constructors):
+            team = str(row.get("team") or "").strip()
+            if not team:
+                continue
+            team_rank_samples.setdefault(team, []).append(idx + 1)
+            team_gap_samples.setdefault(team, []).append(float(row.get("gap_to_fastest_s", 0.0)))
+
+    all_teams = sorted(team_rank_samples.keys())
+    for team in all_teams:
+        trend: list[int | None] = []
+        for round_number in round_numbers:
+            constructors = pace_by_round.get(round_number) or []
+            rank = next(
+                (idx + 1 for idx, row in enumerate(constructors) if str(row.get("team") or "").strip() == team),
+                None,
+            )
+            trend.append(rank)
+        team_trends[team] = trend
+
+    constructor_rows = []
+    for team in all_teams:
+        ranks = team_rank_samples.get(team, [])
+        gaps = team_gap_samples.get(team, [])
+        if not ranks:
+            continue
+        constructor_rows.append(
+            {
+                "team": team,
+                "pace_rank": round(sum(ranks) / len(ranks), 3),
+                "average_gap_s": round(sum(gaps) / len(gaps), 3) if gaps else 0.0,
+                "rounds_sampled": len(ranks),
+                "rank_trend": team_trends.get(team, []),
+            }
+        )
+    constructor_rows.sort(key=lambda item: (item["pace_rank"], item["average_gap_s"], item["team"]))
+
+    calendar: list[dict[str, Any]] = []
+    for item in schedule_rounds:
+        round_number = int(item["round"])
+        race_row = by_round_and_type.get((round_number, "R"))
+        quali_row = by_round_and_type.get((round_number, "Q")) or by_round_and_type.get((round_number, "SQ"))
+
+        winner = None
+        pole = None
+        if race_row and race_row.get("results_json"):
+            try:
+                results_payload = json.loads(race_row["results_json"])
+                drivers = results_payload.get("drivers") or []
+                win_row = next(
+                    (driver for driver in drivers if driver.get("finish_position") == 1),
+                    None,
+                )
+                if win_row:
+                    winner = _driver_name(win_row)
+            except Exception:
+                winner = None
+
+        if quali_row and quali_row.get("results_json"):
+            try:
+                results_payload = json.loads(quali_row["results_json"])
+                drivers = results_payload.get("drivers") or []
+                pole_row = next(
+                    (driver for driver in drivers if driver.get("finish_position") == 1),
+                    None,
+                )
+                if pole_row:
+                    pole = _driver_name(pole_row)
+            except Exception:
+                pole = None
+
+        calendar.append(
+            {
+                "round": round_number,
+                "event_name": item["event_name"],
+                "event_date": item.get("event_date"),
+                "winner": winner,
+                "pole": pole,
+                "session_types": item.get("session_types", []),
+            }
+        )
+
+    standings = _build_standings(rows)
+    return {
+        "year": year,
+        "total_rounds": len(schedule_rounds),
+        "analyzed_rounds": len(analyzed_rounds),
+        "constructors": constructor_rows,
+        "standings": standings,
+        "calendar": calendar,
+    }

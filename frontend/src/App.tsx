@@ -11,6 +11,7 @@ import { StintTimeline } from "./components/StintTimeline";
 import { SpeedTraceCompare } from "./components/SpeedTraceCompare";
 import { TyreDegradationChart } from "./components/TyreDegradationChart";
 import { KeyboardHelp } from "./components/KeyboardHelp";
+import { SeasonHome } from "./components/SeasonHome";
 import { pageTransition } from "./design/tokens";
 import { useSessionStore, type SessionStoreError } from "./store/sessionStore";
 import type { PaceResponse } from "./api/types";
@@ -91,6 +92,8 @@ function App() {
   const selectedDriver = useSessionStore((s) => s.selectedDriver);
   const selectDriver = useSessionStore((s) => s.selectDriver);
   const hasLoaded = useSessionStore((s) => s.hasLoaded);
+  const loadSession = useSessionStore((s) => s.loadSession);
+  const clear = useSessionStore((s) => s.clear);
   const globalLoading = useSessionStore((s) => s.globalLoading);
   const loadingStep = useSessionStore((s) => s.loadingStep);
   const paceLoading = useSessionStore((s) => s.paceLoading);
@@ -110,7 +113,7 @@ function App() {
     : pageTransition;
 
   const anyLoading = paceLoading || circuitLoading || insightsLoading;
-  const showEmpty = !hasLoaded && !anyLoading;
+  const showHome = !hasLoaded && !anyLoading;
   const showDashboard =
     hasLoaded &&
     (pace || circuit || insights || anyLoading || paceError || circuitError || insightsError);
@@ -124,22 +127,28 @@ function App() {
           <span className="text-card-heading font-medium tracking-card-heading text-text">
             Telesis
           </span>
-          <SessionPicker />
+          <div className="flex items-center gap-2">
+            {hasLoaded && (
+              <button
+                type="button"
+                onClick={() => clear()}
+                className="rounded-pill border border-line bg-surface-3 px-3 py-1.5 text-caption text-secondary"
+              >
+                Season home
+              </button>
+            )}
+            <SessionPicker />
+          </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-content px-page-x pb-20 pt-nav-offset md:px-page-x-md">
-        {showEmpty && (
+        {showHome && (
           <motion.div
-            className="mx-auto max-w-prose py-24 text-center"
+            className="py-6"
             {...fadeProps}
           >
-            <h1 className="text-[clamp(2rem,6vw,3rem)] font-medium leading-headline tracking-hero text-text">
-              Select a session to begin
-            </h1>
-            <p className="mt-4 text-body text-muted">
-              Choose a season, round, and session type, then load session data.
-            </p>
+            <SeasonHome onLoadSession={(selection) => void loadSession(selection)} />
           </motion.div>
         )}
 
