@@ -106,10 +106,15 @@ export interface MetricsResponse {
 
 export interface InsightItem {
   id: string;
+  takeaway: string;
   headline_nuggets: string[];
+  rank_chips: string[];
   profile: Record<string, number>;
+  profile_ranks: Record<string, number>;
   evidence: string[];
+  pace_rank: number | null;
   confidence: "high" | "medium" | "low";
+  confidence_note: string | null;
 }
 
 export interface InsightsResponse {

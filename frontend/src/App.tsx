@@ -85,6 +85,7 @@ function App() {
   const raceTrace = useSessionStore((s) => s.raceTrace);
   const stints = useSessionStore((s) => s.stints);
   const tyreDeg = useSessionStore((s) => s.tyreDeg);
+  const telemetryOverlay = useSessionStore((s) => s.telemetryOverlay);
   const selectedInsight = useSessionStore((s) => s.selectedInsight);
   const selectInsight = useSessionStore((s) => s.selectInsight);
   const selectedDriver = useSessionStore((s) => s.selectedDriver);
@@ -171,7 +172,12 @@ function App() {
                     <VerdictSection verdict={insights.verdict} />
                   </section>
                   <section id="constructor-attribution">
-                    <ConstructorAttributionGrid constructors={insights.constructors} />
+                    <ConstructorAttributionGrid
+                      constructors={insights.constructors}
+                      circuit={circuit}
+                      telemetryOverlay={telemetryOverlay}
+                      results={results}
+                    />
                   </section>
                 </>
               )}
@@ -208,6 +214,7 @@ function App() {
                       stints={stints}
                       driverInsights={insights?.drivers ?? []}
                       circuit={circuit}
+                      telemetryOverlay={telemetryOverlay}
                       selectedDriver={selectedDriver}
                       onSelectDriver={selectDriver}
                     />

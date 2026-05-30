@@ -114,10 +114,15 @@ class MetricsResponse(BaseModel):
 
 class InsightItem(BaseModel):
     id: str  # team name or driver abbr
+    takeaway: str = ""
     headline_nuggets: list[str] = Field(default_factory=list)
+    rank_chips: list[str] = Field(default_factory=list)
     profile: dict[str, float] = Field(default_factory=dict)
+    profile_ranks: dict[str, int] = Field(default_factory=dict)
     evidence: list[str] = Field(default_factory=list)
+    pace_rank: int | None = None
     confidence: Literal["high", "medium", "low"] = "medium"
+    confidence_note: str | None = None
 
 
 class InsightsResponse(BaseModel):

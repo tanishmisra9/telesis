@@ -36,16 +36,26 @@ class LLMRefiner:
             "Rules: do not invent facts, preserve identifiers and numeric values, preserve ranking intent, "
             "never use em dashes, and do not add new claims. "
             "Return strict JSON with keys verdict, drivers, constructors. "
-            "drivers/constructors must be arrays of {id, headline_nuggets}."
+            "drivers/constructors must be arrays of {id, takeaway, headline_nuggets, rank_chips}."
         )
         user_payload = {
             "verdict": payload.get("verdict", ""),
             "drivers": [
-                {"id": item.get("id"), "headline_nuggets": item.get("headline_nuggets", [])}
+                {
+                    "id": item.get("id"),
+                    "takeaway": item.get("takeaway", ""),
+                    "headline_nuggets": item.get("headline_nuggets", []),
+                    "rank_chips": item.get("rank_chips", []),
+                }
                 for item in payload.get("drivers", [])
             ],
             "constructors": [
-                {"id": item.get("id"), "headline_nuggets": item.get("headline_nuggets", [])}
+                {
+                    "id": item.get("id"),
+                    "takeaway": item.get("takeaway", ""),
+                    "headline_nuggets": item.get("headline_nuggets", []),
+                    "rank_chips": item.get("rank_chips", []),
+                }
                 for item in payload.get("constructors", [])
             ],
         }
@@ -73,12 +83,24 @@ class LLMRefiner:
             return payload
 
         refined_by_id = {
-            str(item.get("id")): [str(n).replace("—", ",") for n in item.get("headline_nuggets", [])]
+            str(item.get("id")): {
+                "takeaway": str(item.get("takeaway", "")).replace("—", ","),
+                "headline_nuggets": [
+                    str(n).replace("—", ",") for n in item.get("headline_nuggets", [])
+                ],
+                "rank_chips": [str(n).replace("—", ",") for n in item.get("rank_chips", [])],
+            }
             for item in parsed.get("drivers", [])
             if item.get("id")
         }
         refined_team_by_id = {
-            str(item.get("id")): [str(n).replace("—", ",") for n in item.get("headline_nuggets", [])]
+            str(item.get("id")): {
+                "takeaway": str(item.get("takeaway", "")).replace("—", ","),
+                "headline_nuggets": [
+                    str(n).replace("—", ",") for n in item.get("headline_nuggets", [])
+                ],
+                "rank_chips": [str(n).replace("—", ",") for n in item.get("rank_chips", [])],
+            }
             for item in parsed.get("constructors", [])
             if item.get("id")
         }
@@ -88,11 +110,23 @@ class LLMRefiner:
         for item in payload.get("drivers", []):
             item_id = str(item.get("id", ""))
             if item_id in refined_by_id and refined_by_id[item_id]:
-                item["headline_nuggets"] = refined_by_id[item_id]
+                refined = refined_by_id[item_id]
+                if refined["takeaway"]:
+                    item["takeaway"] = refined["takeaway"]
+                if refined["headline_nuggets"]:
+                    item["headline_nuggets"] = refined["headline_nuggets"]
+                if refined["rank_chips"]:
+                    item["rank_chips"] = refined["rank_chips"]
         for item in payload.get("constructors", []):
             item_id = str(item.get("id", ""))
             if item_id in refined_team_by_id and refined_team_by_id[item_id]:
-                item["headline_nuggets"] = refined_team_by_id[item_id]
+                refined = refined_team_by_id[item_id]
+                if refined["takeaway"]:
+                    item["takeaway"] = refined["takeaway"]
+                if refined["headline_nuggets"]:
+                    item["headline_nuggets"] = refined["headline_nuggets"]
+                if refined["rank_chips"]:
+                    item["rank_chips"] = refined["rank_chips"]
         return payload
 
 

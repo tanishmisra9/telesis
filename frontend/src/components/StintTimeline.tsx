@@ -1,11 +1,11 @@
 import type { StintsResponse } from "../api/types";
 
 const compoundColor: Record<string, string> = {
-  SOFT: "#EF4444",
-  MEDIUM: "#F5C13A",
-  HARD: "#F5F5F7",
-  INTERMEDIATE: "#7DD88F",
-  WET: "#5BA3F5",
+  SOFT: "rgba(223, 102, 108, 0.72)",
+  MEDIUM: "rgba(214, 173, 93, 0.72)",
+  HARD: "rgba(206, 210, 216, 0.68)",
+  INTERMEDIATE: "rgba(117, 180, 136, 0.72)",
+  WET: "rgba(107, 151, 214, 0.72)",
 };
 
 interface StintTimelineProps {
@@ -22,7 +22,7 @@ export function StintTimeline({ data }: StintTimelineProps) {
         <span>Lap 1</span>
         <span>Lap {total}</span>
       </div>
-      <div className="space-y-2">
+      <div className="space-y-3">
         {data.drivers.map((driver) => (
           <div key={driver.abbr} className="flex items-center gap-3">
             <div className="w-10 text-caption text-secondary">{driver.abbr}</div>
@@ -30,7 +30,7 @@ export function StintTimeline({ data }: StintTimelineProps) {
               {driver.stints.map((stint) => (
                 <div
                   key={`${driver.abbr}-${stint.stint_number}`}
-                  className="flex h-4 items-center justify-center rounded-[4px] text-[9px] font-medium text-black/80"
+                  className="flex h-[17px] items-center justify-center rounded-[5px] border border-black/10 text-[9px] font-medium text-black/55"
                   style={{
                     width: `${Math.max(2, (stint.lap_count / total) * 100)}%`,
                     backgroundColor: compoundColor[stint.compound] ?? "rgba(255,255,255,0.45)",

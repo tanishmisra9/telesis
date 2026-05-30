@@ -1,4 +1,10 @@
-import type { CircuitResponse, InsightItem, ResultsResponse, StintsResponse } from "../api/types";
+import type {
+  CircuitResponse,
+  InsightItem,
+  ResultsResponse,
+  StintsResponse,
+  TelemetryOverlayResponse,
+} from "../api/types";
 import { DriverDetailPane } from "./DriverDetailPane";
 import { Leaderboard } from "./Leaderboard";
 
@@ -7,6 +13,7 @@ interface DriverExplorerProps {
   stints: StintsResponse | null;
   driverInsights: InsightItem[];
   circuit: CircuitResponse | null;
+  telemetryOverlay: TelemetryOverlayResponse | null;
   selectedDriver: string | null;
   onSelectDriver: (abbr: string | null) => void;
 }
@@ -16,6 +23,7 @@ export function DriverExplorer({
   stints,
   driverInsights,
   circuit,
+  telemetryOverlay,
   selectedDriver,
   onSelectDriver,
 }: DriverExplorerProps) {
@@ -32,6 +40,7 @@ export function DriverExplorer({
         stints={stints}
         insights={driverInsights}
         circuit={circuit}
+        telemetryOverlay={telemetryOverlay}
         selectedDriver={selectedDriver}
         onSelectDriver={onSelectDriver}
       />
