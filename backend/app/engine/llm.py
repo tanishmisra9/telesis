@@ -84,28 +84,28 @@ class LLMRefiner:
 
         refined_by_id = {
             str(item.get("id")): {
-                "takeaway": str(item.get("takeaway", "")).replace("—", ","),
+                "takeaway": str(item.get("takeaway", "")).replace("\u2014", ","),
                 "headline_nuggets": [
-                    str(n).replace("—", ",") for n in item.get("headline_nuggets", [])
+                    str(n).replace("\u2014", ",") for n in item.get("headline_nuggets", [])
                 ],
-                "rank_chips": [str(n).replace("—", ",") for n in item.get("rank_chips", [])],
+                "rank_chips": [str(n).replace("\u2014", ",") for n in item.get("rank_chips", [])],
             }
             for item in parsed.get("drivers", [])
             if item.get("id")
         }
         refined_team_by_id = {
             str(item.get("id")): {
-                "takeaway": str(item.get("takeaway", "")).replace("—", ","),
+                "takeaway": str(item.get("takeaway", "")).replace("\u2014", ","),
                 "headline_nuggets": [
-                    str(n).replace("—", ",") for n in item.get("headline_nuggets", [])
+                    str(n).replace("\u2014", ",") for n in item.get("headline_nuggets", [])
                 ],
-                "rank_chips": [str(n).replace("—", ",") for n in item.get("rank_chips", [])],
+                "rank_chips": [str(n).replace("\u2014", ",") for n in item.get("rank_chips", [])],
             }
             for item in parsed.get("constructors", [])
             if item.get("id")
         }
         payload["verdict"] = str(parsed.get("verdict", payload.get("verdict", ""))).replace(
-            "—", ","
+            "\u2014", ","
         )
         for item in payload.get("drivers", []):
             item_id = str(item.get("id", ""))

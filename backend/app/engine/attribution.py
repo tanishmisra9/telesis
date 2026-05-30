@@ -371,7 +371,7 @@ def build_attribution_payload(
     sentences.append(
         "Signals are telemetry-based tendencies, and deeper numbers stay in the expanded details."
     )
-    verdict = " ".join(sentences[:5]).replace("—", ",")
+    verdict = " ".join(sentences[:5]).replace("\u2014", ",")
 
     mode = "quali" if session_type in {"Q", "SQ"} else ("race" if session_type in {"R", "S"} else "practice")
     return {
