@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   CircuitResponse,
   InsightItem,
@@ -24,10 +24,49 @@ export function ConstructorAttributionGrid({
   results,
 }: ConstructorAttributionGridProps) {
   const [focusedTeam, setFocusedTeam] = useState<string | null>(null);
+  const scrollYRef = useRef(0);
   const focused = useMemo(
     () => constructors.find((item) => item.id === focusedTeam) ?? null,
     [constructors, focusedTeam],
   );
+  const teamDrivers = useMemo(
+    () => (focused ? (results?.drivers ?? []).filter((row) => row.team === focused.id) : []),
+    [focused, results],
+  );
+
+  useEffect(() => {
+    if (!focused) return;
+    const bodyStyle = document.body.style;
+    scrollYRef.current = window.scrollY;
+    bodyStyle.position = "fixed";
+    bodyStyle.top = `-${scrollYRef.current}px`;
+    bodyStyle.width = "100%";
+    bodyStyle.overflowY = "hidden";
+    return () => {
+      const y = scrollYRef.current;
+      bodyStyle.position = "";
+      bodyStyle.top = "";
+      bodyStyle.width = "";
+      bodyStyle.overflowY = "";
+      window.scrollTo(0, y);
+    };
+  }, [focused]);
+
+  const closeOverlay = () => {
+    setFocusedTeam(null);
+  };
+
+  const profileRows = focused
+    ? [
+        { label: "Low-speed corners", key: "low_speed_corners" },
+        { label: "Medium-speed corners", key: "medium_speed_corners" },
+        { label: "High-speed corners", key: "high_speed_corners" },
+        { label: "Straight-line speed", key: "straight_line" },
+        { label: "Full throttle", key: "full_throttle" },
+        { label: "Deployment", key: "deployment" },
+      ]
+    : [];
+
   return (
     <section className="rounded-card border border-line bg-panel p-5 shadow-panel">
       <h2 className="text-card-heading font-medium tracking-card-heading text-text">
@@ -78,8 +117,14 @@ export function ConstructorAttributionGrid({
         ))}
       </div>
       {focused && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/65 p-4">
-          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-card border border-line bg-panel p-5 shadow-panel">
+        <div className="fixed inset-0 z-40 bg-black/65 p-4">
+          <button
+            aria-label="Close constructor detail"
+            type="button"
+            className="absolute inset-0 h-full w-full cursor-default"
+            onClick={closeOverlay}
+          />
+          <div className="relative mx-auto max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-card border border-line bg-panel p-5 shadow-panel">
             <div className="mb-4 flex items-start justify-between">
               <div className="flex items-center gap-3">
                 <TeamBadge team={focused.id} />
@@ -90,7 +135,7 @@ export function ConstructorAttributionGrid({
               </div>
               <button
                 type="button"
-                onClick={() => setFocusedTeam(null)}
+                onClick={closeOverlay}
                 className="rounded-pill border border-line bg-surface-3 px-3 py-1 text-caption text-secondary"
               >
                 Close
@@ -98,21 +143,35 @@ export function ConstructorAttributionGrid({
             </div>
             <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
               <section className="rounded-inner border border-line bg-surface-2 p-4">
-                <h4 className="text-label text-primary">Constructor profile</h4>
-                <div className="mt-3">
-                  <PerformanceSignature
-                    profile={focused.profile}
-                    profileRanks={focused.profile_ranks}
-                  />
+                <h4 className="text-label text-primary">Corner-class breakdown</h4>
+                <div className="mt-3 space-y-2">
+                  {profileRows.map((item) => (
+                    <div key={item.key} className="flex items-center justify-between rounded-pill bg-surface-3 px-3 py-1.5">
+                      <span className="text-caption text-secondary">{item.label}</span>
+                      <span className="text-caption tabular text-primary">
+                        {(focused.profile[item.key] ?? 0).toFixed(1)}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-                <div className="mt-4 space-y-1 text-secondary-body text-muted">
+                <h4 className="mt-4 text-label text-primary">Driver pairing</h4>
+                <div className="mt-2 space-y-1 text-caption text-secondary">
+                  {teamDrivers.map((driver) => (
+                    <p key={driver.abbr}>
+                      {driver.full_name ?? driver.abbr} ({driver.abbr})
+                    </p>
+                  ))}
+                  {!teamDrivers.length && <p>No cached drivers for this team in this session.</p>}
+                </div>
+                <h4 className="mt-4 text-label text-primary">Evidence</h4>
+                <div className="mt-2 space-y-1 text-secondary-body text-muted">
                   {focused.evidence.map((item) => (
                     <p key={item}>{item}</p>
                   ))}
                 </div>
-                {focused.confidence_note && (
-                  <p className="mt-3 text-caption text-muted">{focused.confidence_note}</p>
-                )}
+                <div className="mt-4">
+                  <PerformanceSignature profile={focused.profile} profileRanks={focused.profile_ranks} />
+                </div>
               </section>
               {circuit && (
                 <CircuitMap
