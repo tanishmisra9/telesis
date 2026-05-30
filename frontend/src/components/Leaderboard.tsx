@@ -5,7 +5,7 @@ interface LeaderboardProps {
   results: ResultsResponse;
   stints: StintsResponse | null;
   selectedDriver: string | null;
-  onSelectDriver: (abbr: string) => void;
+  onSelectDriver: (abbr: string | null) => void;
 }
 
 export function Leaderboard({
@@ -26,7 +26,7 @@ export function Leaderboard({
           <button
             key={driver.abbr}
             type="button"
-            onClick={() => onSelectDriver(driver.abbr)}
+            onClick={() => onSelectDriver(selectedDriver === driver.abbr ? null : driver.abbr)}
             className="flex w-full items-center gap-3 rounded-inner border border-transparent bg-surface-2 px-2 py-2 text-left transition hover:border-hairline hover:bg-surface-3"
             style={
               selectedDriver === driver.abbr

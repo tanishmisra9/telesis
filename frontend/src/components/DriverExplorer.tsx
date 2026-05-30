@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import type {
   CircuitResponse,
   InsightItem,
@@ -27,6 +28,16 @@ export function DriverExplorer({
   selectedDriver,
   onSelectDriver,
 }: DriverExplorerProps) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onSelectDriver(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onSelectDriver]);
+
   return (
     <section className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
       <Leaderboard

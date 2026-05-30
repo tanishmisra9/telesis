@@ -7,9 +7,9 @@ import { circuit, colors } from "../design/tokens";
 const MARGIN = 80;
 const CORNER_OFFSET = 110;
 const CHEVRON_SIZE = 11;
-const SECTOR_STROKE_WIDTH = 8;
+const SECTOR_STROKE_WIDTH = 10;
 const SECTOR_STROKE_WIDTH_NEUTRAL = 3.5;
-const DRS_STROKE_WIDTH = 5;
+const DRS_STROKE_WIDTH = 6;
 const CORNER_RENDER_MODE: "A" | "B" = "A";
 
 type Point = [number, number];
@@ -148,7 +148,7 @@ interface CircuitMapProps {
   results?: ResultsResponse | null;
   selectedDriver?: string | null;
   selectedConstructor?: string | null;
-  onSelectDriver?: (abbr: string) => void;
+  onSelectDriver?: (abbr: string | null) => void;
 }
 
 export function CircuitMap({
@@ -316,6 +316,17 @@ export function CircuitMap({
     return null;
   }, [circuitData.bbox, circuitData.centerline, deltaSeries, dominanceTeams, hoveredIndex, mode]);
 
+  const dominanceLegend = useMemo(() => {
+    const seen = new Set<string>();
+    const items: string[] = [];
+    for (const team of dominanceTeams) {
+      if (!team || seen.has(team)) continue;
+      seen.add(team);
+      items.push(team);
+    }
+    return items;
+  }, [dominanceTeams]);
+
   return (
     <motion.div
       className="w-full rounded-card border border-line bg-panel p-5 shadow-panel"
@@ -325,23 +336,35 @@ export function CircuitMap({
     >
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-card-heading font-medium tracking-card-heading text-text">Circuit map</h2>
-        <div className="inline-flex rounded-pill border border-line bg-glass p-0.5">
-          {(["sectors", "dominance", "delta"] as const).map((entry) => (
-            <button
-              key={entry}
-              type="button"
-              onClick={() => setMode(entry)}
-              className={`rounded-pill px-2.5 py-1 text-caption ${
-                mode === entry ? "bg-accent-tint text-accent" : "text-secondary"
-              }`}
-            >
-              {entry === "sectors"
-                ? "Sectors"
-                : entry === "dominance"
-                  ? "Track dominance"
-                  : "Selected delta"}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onSelectDriver?.(null)}
+            disabled={!selectedDriver}
+            className={`rounded-pill border border-line px-2.5 py-1 text-caption ${
+              selectedDriver ? "bg-surface-3 text-secondary" : "bg-surface-2 text-tertiary"
+            }`}
+          >
+            Clear selection
+          </button>
+          <div className="inline-flex rounded-pill border border-line bg-glass p-0.5">
+            {(["sectors", "dominance", "delta"] as const).map((entry) => (
+              <button
+                key={entry}
+                type="button"
+                onClick={() => setMode(entry)}
+                className={`rounded-pill px-2.5 py-1 text-caption ${
+                  mode === entry ? "bg-accent-tint text-accent" : "text-secondary"
+                }`}
+              >
+                {entry === "sectors"
+                  ? "Sectors"
+                  : entry === "dominance"
+                    ? "Track dominance"
+                    : "Selected delta"}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -359,6 +382,20 @@ export function CircuitMap({
           <span>S3</span>
         </div>
       </div>
+
+      {mode === "dominance" && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {dominanceLegend.map((team) => (
+            <span
+              key={team}
+              className="inline-flex items-center gap-1.5 rounded-pill border border-line bg-surface-3 px-2 py-1 text-caption text-secondary"
+            >
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: resolveTeamColor(team) }} />
+              {team}
+            </span>
+          ))}
+        </div>
+      )}
 
       <svg
         viewBox={viewBox}
@@ -389,7 +426,7 @@ export function CircuitMap({
         }}
         onMouseLeave={() => setHoveredIndex(null)}
       >
-        <path d={trackPath} fill={circuit.trackSurface} stroke={circuit.trackEdge} strokeWidth={1.2} />
+        <path d={trackPath} fill={circuit.trackSurface} stroke={circuit.trackEdge} strokeWidth={2.8} />
 
         {mode === "sectors" &&
           sectorSegments.map((segment, idx) => (
@@ -417,7 +454,7 @@ export function CircuitMap({
                 x2={point[0]}
                 y2={flipY(point[1], circuitData.bbox)}
                 stroke={resolveTeamColor(team)}
-                strokeWidth={6}
+                strokeWidth={9}
                 strokeLinecap="round"
                 opacity={0.92}
               />
@@ -442,7 +479,7 @@ export function CircuitMap({
                 x2={point[0]}
                 y2={flipY(point[1], circuitData.bbox)}
                 stroke={color}
-                strokeWidth={6}
+                strokeWidth={8}
                 strokeLinecap="round"
               />
             );
