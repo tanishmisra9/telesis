@@ -1,132 +1,42 @@
 import { useMemo, useState } from "react";
 import type { DriverStintDegEntry, DriverTyreDegEntry, TyreDegResponse } from "../api/types";
+import { resolveTeamColor } from "../design/teamColors";
 
 interface TyreDegradationChartProps {
   data: TyreDegResponse;
 }
 
-const COMPOUND_COLORS: Record<string, string> = {
-  SOFT: "rgba(223, 102, 108, 0.82)",
-  MEDIUM: "rgba(214, 173, 93, 0.82)",
-  HARD: "rgba(206, 210, 216, 0.82)",
-  INTERMEDIATE: "rgba(117, 180, 136, 0.82)",
-  WET: "rgba(107, 151, 214, 0.82)",
-  UNKNOWN: "rgba(181, 181, 181, 0.72)",
-};
-
-interface TeamAggregate {
-  team: string;
-  drivers: DriverTyreDegEntry[];
-}
-
-interface ChartDomain {
-  yMin: number;
-  yMax: number;
-  xMin: number;
-  xMax: number;
+interface CurvePoint {
+  tyreAge: number;
+  lapTimeS: number;
 }
 
 function mergeStints(drivers: DriverTyreDegEntry[]): DriverStintDegEntry[] {
   return drivers.flatMap((driver) => driver.stints);
 }
 
-function computeDomain(teams: TeamAggregate[]): ChartDomain {
-  const lapTimes = teams.flatMap((team) =>
-    mergeStints(team.drivers).flatMap((stint) => stint.points.map((point) => point.lap_time_s)),
-  );
-  const tyreAges = teams.flatMap((team) =>
-    mergeStints(team.drivers).flatMap((stint) => stint.points.map((point) => point.tyre_age)),
-  );
-  const yMin = lapTimes.length ? Math.min(...lapTimes) - 0.15 : 0;
-  const yMax = lapTimes.length ? Math.max(...lapTimes) + 0.15 : 1;
-  const xMin = 0;
-  const xMax = tyreAges.length ? Math.max(...tyreAges) : 1;
-  return { yMin, yMax, xMin, xMax };
+function averageSlope(stints: DriverStintDegEntry[]): number {
+  if (!stints.length) return 0;
+  return stints.reduce((sum, stint) => sum + stint.slope_s_per_lap, 0) / stints.length;
 }
 
-function DegChart({
-  stints,
-  domain,
-}: {
-  stints: DriverStintDegEntry[];
-  domain: ChartDomain;
-}) {
-  const width = 320;
-  const height = 190;
-  const left = 38;
-  const top = 16;
-  const chartW = 262;
-  const chartH = 140;
-
-  const toX = (x: number) => left + ((x - domain.xMin) / (domain.xMax - domain.xMin || 1)) * chartW;
-  const toY = (y: number) => top + chartH - ((y - domain.yMin) / (domain.yMax - domain.yMin || 1)) * chartH;
-
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="mt-2 w-full">
-      <rect x={left} y={top} width={chartW} height={chartH} fill="transparent" stroke="rgba(255,255,255,0.08)" />
-      {[0, 1, 2, 3, 4].map((tick) => {
-        const value = domain.yMin + ((domain.yMax - domain.yMin) * tick) / 4;
-        const y = toY(value);
-        return (
-          <g key={tick}>
-            <line x1={left} x2={left + chartW} y1={y} y2={y} stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
-            <text x={left - 4} y={y} textAnchor="end" dominantBaseline="middle" fill="rgba(255,255,255,0.6)" fontSize={9}>
-              {value.toFixed(2)}
-            </text>
-          </g>
-        );
-      })}
-      {stints.map((stint, index) => {
-        const color = COMPOUND_COLORS[stint.compound] ?? COMPOUND_COLORS.UNKNOWN;
-        const xValues = stint.points.map((point) => point.tyre_age);
-        const localMinX = xValues.length ? Math.min(...xValues) : 0;
-        const localMaxX = xValues.length ? Math.max(...xValues) : 0;
-        const fitStartY = stint.intercept_s + stint.slope_s_per_lap * localMinX;
-        const fitEndY = stint.intercept_s + stint.slope_s_per_lap * localMaxX;
-        return (
-          <g key={`${stint.compound}-${stint.stint_number}-${index}`}>
-            {stint.points.map((point, idx) => (
-              <circle
-                key={`${stint.stint_number}-${idx}`}
-                cx={toX(point.tyre_age)}
-                cy={toY(point.lap_time_s)}
-                r={2.3}
-                fill={color}
-              />
-            ))}
-            <line
-              x1={toX(localMinX)}
-              y1={toY(fitStartY)}
-              x2={toX(localMaxX)}
-              y2={toY(fitEndY)}
-              stroke={color}
-              strokeWidth={1.5}
-            />
-            <text
-              x={toX(localMaxX)}
-              y={toY(fitEndY) - 4}
-              textAnchor="end"
-              fill={color}
-              fontSize={9}
-            >
-              {stint.slope_s_per_lap >= 0 ? "+" : ""}
-              {stint.slope_s_per_lap.toFixed(3)} s/lap
-            </text>
-          </g>
-        );
-      })}
-      <text x={width / 2} y={184} textAnchor="middle" fill="rgba(255,255,255,0.72)" fontSize={10}>
-        Tyre age (laps)
-      </text>
-      <text x={10} y={86} textAnchor="middle" fill="rgba(255,255,255,0.72)" fontSize={10} transform="rotate(-90 10 86)">
-        Lap time (s)
-      </text>
-    </svg>
-  );
+function buildCurvePoints(stints: DriverStintDegEntry[]): CurvePoint[] {
+  const byAge = new Map<number, number[]>();
+  for (const stint of stints) {
+    for (const point of stint.points) {
+      byAge.set(point.tyre_age, [...(byAge.get(point.tyre_age) ?? []), point.lap_time_s]);
+    }
+  }
+  return Array.from(byAge.entries())
+    .map(([tyreAge, values]) => ({
+      tyreAge,
+      lapTimeS: values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length),
+    }))
+    .sort((a, b) => a.tyreAge - b.tyreAge);
 }
 
 export function TyreDegradationChart({ data }: TyreDegradationChartProps) {
-  const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"ranked" | "curves">("ranked");
   if (!data.applicable) return null;
 
   const teams = useMemo(() => {
@@ -137,73 +47,124 @@ export function TyreDegradationChart({ data }: TyreDegradationChartProps) {
     return Array.from(map.entries()).map(([team, drivers]) => ({ team, drivers }));
   }, [data.drivers]);
 
-  const allStintRows = teams.flatMap((team) =>
-    mergeStints(team.drivers).map((stint) => ({
-      team: team.team,
-      slope: stint.slope_s_per_lap,
-    })),
+  const rankedTeams = useMemo(
+    () =>
+      teams
+        .map((team) => ({
+          team: team.team,
+          stints: mergeStints(team.drivers),
+        }))
+        .map((team) => ({
+          ...team,
+          slope: averageSlope(team.stints),
+        }))
+        .sort((a, b) => b.slope - a.slope),
+    [teams],
   );
-  const steepest = allStintRows.slice().sort((a, b) => b.slope - a.slope)[0];
-  const shallowest = allStintRows.slice().sort((a, b) => a.slope - b.slope)[0];
-  const primaryTeams = Array.from(
-    new Set([teams[0]?.team ?? "", teams[1]?.team ?? "", teams[2]?.team ?? "", steepest?.team ?? "", shallowest?.team ?? ""]),
-  ).filter(Boolean);
-  const selectedTeams = teams.filter((team) => primaryTeams.includes(team.team));
-  const domain = computeDomain(selectedTeams);
+
+  const allSlopes = rankedTeams.map((team) => team.slope);
+  const slopeMin = allSlopes.length ? Math.min(...allSlopes) : -0.05;
+  const slopeMax = allSlopes.length ? Math.max(...allSlopes) : 0.05;
+
+  const curveSeries = useMemo(
+    () =>
+      rankedTeams.map((team) => ({
+        team: team.team,
+        points: buildCurvePoints(team.stints),
+      })),
+    [rankedTeams],
+  );
+  const allCurvePoints = curveSeries.flatMap((series) => series.points);
+  const maxTyreAge = allCurvePoints.length ? Math.max(...allCurvePoints.map((point) => point.tyreAge)) : 1;
+  const minLapTime = allCurvePoints.length ? Math.min(...allCurvePoints.map((point) => point.lapTimeS)) : 0;
+  const maxLapTime = allCurvePoints.length ? Math.max(...allCurvePoints.map((point) => point.lapTimeS)) : 1;
 
   return (
     <section className="rounded-card border border-line bg-panel p-4 shadow-panel">
-      <h3 className="mb-3 text-card-heading font-medium text-primary">Tyre degradation</h3>
-      <p className="mb-3 text-secondary-body text-muted">
-        Constructor-level view by default, because degradation is mostly car and compound behavior.
-      </p>
-
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {selectedTeams.map((team) => {
-          const stints = mergeStints(team.drivers);
-          return (
-            <article key={team.team} className="rounded-inner border border-line bg-surface-2 p-3">
-              <div className="flex items-center justify-between">
-                <p className="text-label text-primary">{team.team}</p>
-                <button
-                  type="button"
-                  onClick={() => setExpandedTeam(expandedTeam === team.team ? null : team.team)}
-                  className="rounded-pill border border-line bg-surface-3 px-2 py-1 text-caption text-secondary"
-                >
-                  {expandedTeam === team.team ? "Hide drivers" : "Show drivers"}
-                </button>
-              </div>
-              <DegChart stints={stints} domain={domain} />
-              <div className="mt-2 space-y-1 text-caption text-secondary">
-                {stints.map((stint, idx) => (
-                  <p key={`${team.team}-${stint.stint_number}-${idx}`}>
-                    {stint.compound}: {stint.slope_s_per_lap >= 0 ? "degrading" : "improving"} at {stint.slope_s_per_lap.toFixed(3)} s/lap
-                  </p>
-                ))}
-              </div>
-              {expandedTeam === team.team && (
-                <div className="mt-3 space-y-2 rounded-inner border border-line bg-panel/50 p-2">
-                  {team.drivers.map((driver) => (
-                    <div key={`${team.team}-${driver.abbr}`}>
-                      <p className="text-caption text-primary">{driver.abbr}</p>
-                      <div className="space-y-1 text-caption text-muted">
-                        {driver.stints.map((stint) => (
-                          <p key={`${driver.abbr}-${stint.stint_number}`}>
-                            {stint.compound}: {stint.slope_s_per_lap >= 0 ? "degrading" : "improving"} at {stint.slope_s_per_lap.toFixed(3)} s/lap
-                          </p>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </article>
-          );
-        })}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-card-heading font-medium text-primary">Tyre degradation</h3>
+        <div className="inline-flex rounded-pill border border-line bg-glass p-0.5">
+          <button
+            type="button"
+            onClick={() => setViewMode("ranked")}
+            className={`rounded-pill px-2.5 py-1 text-caption ${
+              viewMode === "ranked" ? "bg-accent-tint text-accent" : "text-secondary"
+            }`}
+          >
+            Ranked rates
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("curves")}
+            className={`rounded-pill px-2.5 py-1 text-caption ${
+              viewMode === "curves" ? "bg-accent-tint text-accent" : "text-secondary"
+            }`}
+          >
+            Overlaid curves
+          </button>
+        </div>
       </div>
 
-      <p className="mt-2 text-secondary-body text-muted">
-        Each panel shows scatter points and per-stint fit lines, with shared axes across teams.
+      <svg viewBox="0 0 760 320" className="w-full rounded-inner border border-line bg-surface-2 p-2">
+        <rect x={64} y={20} width={660} height={250} fill="transparent" stroke="rgba(255,255,255,0.08)" />
+        {viewMode === "ranked" &&
+          rankedTeams.map((team, index) => {
+            const rowHeight = 250 / Math.max(1, rankedTeams.length);
+            const y = 20 + index * rowHeight + rowHeight / 2;
+            const xZero = 64 + ((0 - slopeMin) / Math.max(0.0001, slopeMax - slopeMin)) * 660;
+            const xValue = 64 + ((team.slope - slopeMin) / Math.max(0.0001, slopeMax - slopeMin)) * 660;
+            const barStart = Math.min(xZero, xValue);
+            const barWidth = Math.abs(xValue - xZero);
+            const color = resolveTeamColor(team.team);
+            return (
+              <g key={team.team}>
+                <text x={12} y={y + 4} fill="rgba(245,245,247,0.9)" fontSize={11}>
+                  {index + 1}. {team.team}
+                </text>
+                <line x1={64} x2={724} y1={y} y2={y} stroke="rgba(255,255,255,0.05)" />
+                <rect x={barStart} y={y - 6} width={Math.max(1, barWidth)} height={12} rx={6} fill={color} />
+                <text x={730} y={y + 4} fill="rgba(245,245,247,0.7)" fontSize={10} textAnchor="end">
+                  {team.slope >= 0 ? "+" : ""}
+                  {team.slope.toFixed(3)} s/lap
+                </text>
+              </g>
+            );
+          })}
+        {viewMode === "curves" &&
+          curveSeries.map((series) => {
+            if (!series.points.length) return null;
+            const color = resolveTeamColor(series.team);
+            const path = series.points
+              .map((point, index) => {
+                const x = 64 + (point.tyreAge / Math.max(1, maxTyreAge)) * 660;
+                const y = 20 + (1 - (point.lapTimeS - minLapTime) / Math.max(0.001, maxLapTime - minLapTime)) * 250;
+                return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+              })
+              .join(" ");
+            return <path key={series.team} d={path} fill="none" stroke={color} strokeWidth={2.2} />;
+          })}
+        <text x={394} y={306} textAnchor="middle" fill="rgba(245,245,247,0.72)" fontSize={11}>
+          {viewMode === "ranked" ? "Average degradation rate (s/lap, positive means slower with age)" : "Tyre age (laps)"}
+        </text>
+        <text x={22} y={145} textAnchor="middle" fill="rgba(245,245,247,0.72)" fontSize={11} transform="rotate(-90 22 145)">
+          {viewMode === "ranked" ? "Constructors (ranked)" : "Lap time (s)"}
+        </text>
+      </svg>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {rankedTeams.map((team) => (
+          <span
+            key={team.team}
+            className="inline-flex items-center gap-1.5 rounded-pill border border-line bg-surface-3 px-2 py-1 text-caption text-secondary"
+          >
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: resolveTeamColor(team.team) }} />
+            {team.team}
+          </span>
+        ))}
+      </div>
+
+      <p className="mt-3 text-secondary-body text-muted">
+        Method: all constructors included, degradation is lap-time change per lap of tyre age (positive means degrading, negative means improving), shared axes across teams.
       </p>
     </section>
   );
