@@ -23,7 +23,7 @@ function formatGap(gap: number): string {
 }
 
 function formatCompounds(compounds: string[]): string {
-  return compounds.length > 0 ? compounds.join("-") : "—";
+  return compounds.length > 0 ? compounds.join("-") : "N/A";
 }
 
 function driversToRows(drivers: DriverPaceEntry[]): PaceChartRow[] {

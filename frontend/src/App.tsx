@@ -162,7 +162,7 @@ function App() {
                 {selection ? `${selection.year} · Round ${selection.round} · ${selection.sessionType}` : "Session"}
               </p>
               <p className="mt-3 max-w-prose text-body text-secondary">
-                Telemetry-backed analyst view with verdict-first attribution.
+                Post-session telemetry analysis.
               </p>
               {globalLoading && (
                 <div className="mt-4 w-72">

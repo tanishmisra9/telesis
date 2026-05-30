@@ -49,7 +49,7 @@ export function Leaderboard({
             </div>
             <div className="text-right">
               <p className="text-caption tabular text-secondary">
-                {driver.fastest_lap_s ? driver.fastest_lap_s.toFixed(3) : "—"}
+                {driver.fastest_lap_s ? driver.fastest_lap_s.toFixed(3) : "N/A"}
               </p>
               <p className="text-micro text-tertiary">{driver.status ?? ""}</p>
             </div>

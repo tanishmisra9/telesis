@@ -1,7 +1,7 @@
 Place optional team logo SVG files in this folder to override monogram badges.
 
 File naming:
-- Use lowercase kebab-case slugs, for example `ferrari.svg`, `mercedes.svg`, `red-bull-racing.svg`.
+- Use lowercase kebab-case slugs, such as `ferrari.svg`, `mercedes.svg`, `red-bull-racing.svg`.
 - Badge lookup path is `assets/logos/{slug}.svg`.
 
 Usage notes:
