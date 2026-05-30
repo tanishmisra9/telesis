@@ -110,6 +110,10 @@ function App() {
         event.preventDefault();
         setShowHelp((v) => !v);
       }
+      if (event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        window.dispatchEvent(new Event("telesis:open-picker"));
+      }
       if (event.key.toLowerCase() === "j" && results?.drivers.length) {
         event.preventDefault();
         const idx = Math.max(
@@ -131,6 +135,7 @@ function App() {
       if (event.key === "Escape") {
         setShowHelp(false);
         selectDriver(null);
+        window.dispatchEvent(new Event("telesis:close-picker"));
       }
     };
     window.addEventListener("keydown", handler);

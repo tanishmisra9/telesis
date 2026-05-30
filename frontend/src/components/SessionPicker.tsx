@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getSchedule } from "../api/client";
 import { useSessionStore } from "../store/sessionStore";
 import type { ScheduleEntry, SessionSelection } from "../api/types";
@@ -13,6 +13,7 @@ export function SessionPicker() {
   const [year, setYear] = useState(DEFAULT_YEAR);
   const [rounds, setRounds] = useState<ScheduleEntry[]>([]);
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -23,6 +24,20 @@ export function SessionPicker() {
       cancelled = true;
     };
   }, [year]);
+
+  useEffect(() => {
+    const handleOpen = () => {
+      setOpen(true);
+      triggerRef.current?.focus();
+    };
+    const handleClose = () => setOpen(false);
+    window.addEventListener("telesis:open-picker", handleOpen);
+    window.addEventListener("telesis:close-picker", handleClose);
+    return () => {
+      window.removeEventListener("telesis:open-picker", handleOpen);
+      window.removeEventListener("telesis:close-picker", handleClose);
+    };
+  }, []);
 
   const label = useMemo(() => {
     if (!selection) return "Select session";
@@ -35,8 +50,9 @@ export function SessionPicker() {
   return (
     <div className="relative">
       <button
+        ref={triggerRef}
         type="button"
-        className="rounded-pill border border-line bg-surface-3 px-3 py-1.5 text-label text-primary"
+        className="rounded-pill border border-line bg-surface-3 px-3 py-1.5 text-label text-primary focus-visible:ring-2 focus-visible:ring-accent-ring"
         onClick={() => setOpen((v) => !v)}
       >
         <span className="mr-2 inline-block h-2 w-2 rounded-full bg-accent" />
@@ -76,7 +92,7 @@ export function SessionPicker() {
                         setOpen(false);
                       }}
                       disabled={globalLoading}
-                      className="rounded-pill bg-surface-3 px-2 py-1 text-micro text-primary hover:bg-accent-tint"
+                      className="rounded-pill bg-surface-3 px-2 py-1 text-micro text-primary hover:bg-accent-tint focus-visible:ring-2 focus-visible:ring-accent-ring"
                     >
                       {sessionType}
                     </button>

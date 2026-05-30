@@ -302,6 +302,13 @@ export function CircuitMap({
           <span>S3</span>
         </div>
       </div>
+      {layer === "speed" && speedValues.length > 1 && (
+        <div className="mb-3 flex items-center gap-2 text-micro text-muted">
+          <span>{speedMin.toFixed(0)} km/h</span>
+          <div className="h-2 w-44 rounded-pill bg-[linear-gradient(90deg,rgb(70,90,220),rgb(160,210,120),rgb(250,120,70))]" />
+          <span>{speedMax.toFixed(0)} km/h</span>
+        </div>
+      )}
 
       <svg
         viewBox={viewBox}
