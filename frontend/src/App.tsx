@@ -1,17 +1,15 @@
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { SessionPicker } from "./components/SessionPicker";
 import { PaceSpreadChart } from "./components/PaceSpreadChart";
-import { CircuitMap } from "./components/CircuitMap";
-import { InsightPanel } from "./components/InsightPanel";
-import { Leaderboard } from "./components/Leaderboard";
+import { VerdictSection } from "./components/VerdictSection";
+import { ConstructorAttributionGrid } from "./components/ConstructorAttributionGrid";
+import { DriverExplorer } from "./components/DriverExplorer";
 import { RaceTraceChart } from "./components/RaceTraceChart";
 import { StintTimeline } from "./components/StintTimeline";
 import { SpeedTraceCompare } from "./components/SpeedTraceCompare";
 import { TyreDegradationChart } from "./components/TyreDegradationChart";
-import { DriverDetailDrawer } from "./components/DriverDetailDrawer";
-import { JumpNav } from "./components/JumpNav";
 import { KeyboardHelp } from "./components/KeyboardHelp";
 import { pageTransition } from "./design/tokens";
 import { useSessionStore, type SessionStoreError } from "./store/sessionStore";
@@ -82,13 +80,11 @@ function App() {
   const pace = useSessionStore((s) => s.pace);
   const circuit = useSessionStore((s) => s.circuit);
   const selection = useSessionStore((s) => s.selection);
-  const metrics = useSessionStore((s) => s.metrics);
   const insights = useSessionStore((s) => s.insights);
   const results = useSessionStore((s) => s.results);
   const raceTrace = useSessionStore((s) => s.raceTrace);
   const stints = useSessionStore((s) => s.stints);
   const tyreDeg = useSessionStore((s) => s.tyreDeg);
-  const telemetryOverlay = useSessionStore((s) => s.telemetryOverlay);
   const selectedInsight = useSessionStore((s) => s.selectedInsight);
   const selectInsight = useSessionStore((s) => s.selectInsight);
   const selectedDriver = useSessionStore((s) => s.selectedDriver);
@@ -103,44 +99,6 @@ function App() {
   const circuitError = useSessionStore((s) => s.circuitError);
   const insightsError = useSessionStore((s) => s.insightsError);
   const [showHelp, setShowHelp] = useState(false);
-
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if (event.key === "?") {
-        event.preventDefault();
-        setShowHelp((v) => !v);
-      }
-      if (event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        window.dispatchEvent(new Event("telesis:open-picker"));
-      }
-      if (event.key.toLowerCase() === "j" && results?.drivers.length) {
-        event.preventDefault();
-        const idx = Math.max(
-          0,
-          results.drivers.findIndex((d) => d.abbr === selectedDriver),
-        );
-        const next = results.drivers[(idx + 1) % results.drivers.length];
-        selectDriver(next.abbr);
-      }
-      if (event.key.toLowerCase() === "k" && results?.drivers.length) {
-        event.preventDefault();
-        const idx = Math.max(
-          0,
-          results.drivers.findIndex((d) => d.abbr === selectedDriver),
-        );
-        const next = results.drivers[(idx - 1 + results.drivers.length) % results.drivers.length];
-        selectDriver(next.abbr);
-      }
-      if (event.key === "Escape") {
-        setShowHelp(false);
-        selectDriver(null);
-        window.dispatchEvent(new Event("telesis:close-picker"));
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [results, selectedDriver, selectDriver]);
 
   const fadeProps = prefersReducedMotion
     ? {
@@ -194,7 +152,7 @@ function App() {
                 {selection ? `${selection.year} · Round ${selection.round} · ${selection.sessionType}` : "Session"}
               </p>
               <p className="mt-3 max-w-prose text-body text-secondary">
-                {insights?.briefing?.split("—").join(",") ?? "Telemetry-backed session briefing."}
+                Telemetry-backed analyst view with verdict-first attribution.
               </p>
               {globalLoading && (
                 <div className="mt-4 w-72">
@@ -207,31 +165,16 @@ function App() {
             </header>
 
             <div className="flex flex-col gap-8">
-              <PanelShell>
-                {circuitLoading && !circuit && (
-                  <PanelLoading label="Loading circuit map" />
-                )}
-                {circuitError && !circuit && !circuitLoading && (
-                  <PanelError message={errorMessage(circuitError)} />
-                )}
-                {circuit && results && (
-                  <section id="leaderboard-circuit" className="grid gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
-                    <Leaderboard
-                      results={results}
-                      stints={stints}
-                      selectedDriver={selectedDriver}
-                      onSelectDriver={selectDriver}
-                    />
-                    <CircuitMap
-                      circuit={circuit}
-                      telemetryOverlay={telemetryOverlay}
-                      results={results}
-                      selectedDriver={selectedDriver}
-                      onSelectDriver={selectDriver}
-                    />
+              {insights && (
+                <>
+                  <section id="verdict">
+                    <VerdictSection verdict={insights.verdict} />
                   </section>
-                )}
-              </PanelShell>
+                  <section id="constructor-attribution">
+                    <ConstructorAttributionGrid constructors={insights.constructors} />
+                  </section>
+                </>
+              )}
 
               <PanelShell>
                 {paceLoading && !pace && (
@@ -242,16 +185,37 @@ function App() {
                 )}
                 {pace && (
                   <section id="pace">
-                  <PaceSpreadChart
-                    pace={pace}
-                    selectedInsight={selectedInsight}
-                    onSelectInsight={selectInsight}
-                  />
+                    <PaceSpreadChart
+                      pace={pace}
+                      selectedInsight={selectedInsight}
+                      onSelectInsight={selectInsight}
+                    />
                   </section>
                 )}
               </PanelShell>
 
-              {raceTrace && (
+              <PanelShell>
+                {circuitLoading && !circuit && (
+                  <PanelLoading label="Loading driver explorer" />
+                )}
+                {circuitError && !circuit && !circuitLoading && (
+                  <PanelError message={errorMessage(circuitError)} />
+                )}
+                {circuit && results && (
+                  <section id="driver-explorer">
+                    <DriverExplorer
+                      results={results}
+                      stints={stints}
+                      driverInsights={insights?.drivers ?? []}
+                      circuit={circuit}
+                      selectedDriver={selectedDriver}
+                      onSelectDriver={selectDriver}
+                    />
+                  </section>
+                )}
+              </PanelShell>
+
+              {raceTrace?.applicable && (
                 <section id="racetrace">
                   <RaceTraceChart
                     data={raceTrace}
@@ -260,66 +224,26 @@ function App() {
                   />
                 </section>
               )}
-              {stints && (
+              {stints?.applicable && (
                 <section id="stints">
                   <StintTimeline data={stints} />
                 </section>
               )}
-              {selection && results && (
+              {selection && results && ["Q", "SQ", "R", "S"].includes(selection.sessionType.toUpperCase()) && (
                 <section id="speedcompare">
                   <SpeedTraceCompare selection={selection} results={results} />
                 </section>
               )}
-              {tyreDeg && (
+              {tyreDeg?.applicable && (
                 <section id="tyredeg">
                   <TyreDegradationChart data={tyreDeg} />
                 </section>
               )}
-
-              <PanelShell>
-                {insightsLoading && !insights && (
-                  <PanelLoading label="Loading insights" />
-                )}
-                {insightsError && !insights && !insightsLoading && (
-                  <PanelError message={errorMessage(insightsError)} />
-                )}
-                {insights && (
-                  <section id="insights">
-                  <InsightPanel
-                    insights={insights}
-                    metrics={metrics}
-                    selected={selectedInsight}
-                  />
-                  </section>
-                )}
-              </PanelShell>
             </div>
           </motion.div>
         )}
       </main>
-      <JumpNav
-        items={[
-          { id: "hero", label: "Hero" },
-          { id: "leaderboard-circuit", label: "Leaderboard + Circuit" },
-          { id: "pace", label: "Pace" },
-          { id: "racetrace", label: "Race trace" },
-          { id: "stints", label: "Stints" },
-          { id: "speedcompare", label: "Speed compare" },
-          { id: "tyredeg", label: "Tyre degradation" },
-          { id: "insights", label: "Insights" },
-        ]}
-      />
       <KeyboardHelp open={showHelp} onClose={() => setShowHelp(false)} />
-      {results && (
-        <DriverDetailDrawer
-          open={!!selectedDriver}
-          driverAbbr={selectedDriver}
-          results={results}
-          stints={stints}
-          insights={insights}
-          onClose={() => selectDriver(null)}
-        />
-      )}
     </div>
   );
 }

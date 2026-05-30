@@ -18,6 +18,10 @@ export function StintTimeline({ data }: StintTimelineProps) {
   return (
     <section className="rounded-card border border-line bg-panel p-4 shadow-panel">
       <h3 className="mb-3 text-card-heading font-medium text-primary">Stint timeline</h3>
+      <div className="mb-3 flex items-center justify-between text-micro text-muted">
+        <span>Lap 1</span>
+        <span>Lap {total}</span>
+      </div>
       <div className="space-y-2">
         {data.drivers.map((driver) => (
           <div key={driver.abbr} className="flex items-center gap-3">
@@ -26,18 +30,23 @@ export function StintTimeline({ data }: StintTimelineProps) {
               {driver.stints.map((stint) => (
                 <div
                   key={`${driver.abbr}-${stint.stint_number}`}
-                  className="h-6 rounded-[4px] text-[10px] text-black/80"
+                  className="flex h-4 items-center justify-center rounded-[4px] text-[9px] font-medium text-black/80"
                   style={{
                     width: `${Math.max(2, (stint.lap_count / total) * 100)}%`,
                     backgroundColor: compoundColor[stint.compound] ?? "rgba(255,255,255,0.45)",
                   }}
                   title={`${stint.compound} L${stint.lap_start}-L${stint.lap_end}`}
-                />
+                >
+                  {stint.compound[0]}
+                </div>
               ))}
             </div>
           </div>
         ))}
       </div>
+      <p className="mt-2 text-micro text-muted">
+        Rows are ordered by finishing position; each segment shows compound and stint length.
+      </p>
     </section>
   );
 }

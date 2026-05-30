@@ -28,7 +28,7 @@ from app.engine.stints import build_stints_response
 from app.engine.telemetry_overlay import build_telemetry_overlay_response
 from app.engine.tyredeg import build_tyredeg_response
 
-PIPELINE_LOGIC_VERSION = 1
+PIPELINE_LOGIC_VERSION = 2
 
 
 def _with_versions(payload: dict[str, Any]) -> dict[str, Any]:
@@ -43,7 +43,7 @@ def _build_payloads_from_session(session, session_type: str) -> dict[str, dict[s
         build_metrics_response(session, session_type, circuit_payload)
     )
     insights_payload = _with_versions(
-        build_insights_response(session_type, pace_payload, metrics_payload)
+        build_insights_response(session_type, pace_payload, metrics_payload, circuit_payload)
     )
     results_payload = _with_versions(build_results_response(session, session_type))
     racetrace_payload = _with_versions(build_racetrace_response(session, session_type))

@@ -38,8 +38,8 @@ export function SpeedTraceCompare({ selection, results }: SpeedTraceCompareProps
   const poly = useMemo(() => {
     if (!data) return null;
     const w = 1080;
-    const h = 260;
-    const m = { t: 18, r: 24, b: 28, l: 24 };
+    const h = 320;
+    const m = { t: 18, r: 24, b: 44, l: 44 };
     const n = data.a.distance_m.length || 1;
     const minV = Math.min(...data.a.speed_kmh, ...data.b.speed_kmh);
     const maxV = Math.max(...data.a.speed_kmh, ...data.b.speed_kmh);
@@ -47,7 +47,13 @@ export function SpeedTraceCompare({ selection, results }: SpeedTraceCompareProps
     const toY = (v: number) => h - m.b - ((v - minV) / (maxV - minV || 1)) * (h - m.t - m.b);
     const lineA = data.a.speed_kmh.map((v, i) => `${toX(i)},${toY(v)}`).join(" ");
     const lineB = data.b.speed_kmh.map((v, i) => `${toX(i)},${toY(v)}`).join(" ");
-    return { lineA, lineB, w, h };
+    const deltaLine = data.delta_a_minus_b_s
+      .map((v, i) => {
+        const y = h - 12 - Math.max(-2, Math.min(2, v)) * 8;
+        return `${toX(i)},${y}`;
+      })
+      .join(" ");
+    return { lineA, lineB, deltaLine, w, h };
   }, [data]);
 
   return (
@@ -75,10 +81,33 @@ export function SpeedTraceCompare({ selection, results }: SpeedTraceCompareProps
       {!error && !poly && <p className="text-caption text-secondary">Loading speed traces...</p>}
       {poly && (
         <svg viewBox={`0 0 ${poly.w} ${poly.h}`} className="w-full">
+          <text x={52} y={18} fill="rgba(255,255,255,0.85)" fontSize={11}>
+            {a} {data?.a.lap_time_s.toFixed(3)}s
+          </text>
+          <text x={220} y={18} fill="rgba(255,255,255,0.85)" fontSize={11}>
+            {b} {data?.b.lap_time_s.toFixed(3)}s
+          </text>
           <polyline points={poly.lineA} fill="none" stroke="#F5C13A" strokeWidth={2} />
           <polyline points={poly.lineB} fill="none" stroke="#5BA3F5" strokeWidth={2} />
+          <polyline points={poly.deltaLine} fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth={1.5} strokeDasharray="4 3" />
+          <text x={poly.w / 2} y={poly.h - 6} textAnchor="middle" fill="rgba(255,255,255,0.8)" fontSize={11}>
+            Distance (meters)
+          </text>
+          <text
+            x={12}
+            y={poly.h / 2}
+            textAnchor="middle"
+            fill="rgba(255,255,255,0.8)"
+            fontSize={11}
+            transform={`rotate(-90 12 ${poly.h / 2})`}
+          >
+            Speed (km/h)
+          </text>
         </svg>
       )}
+      <p className="mt-2 text-micro text-muted">
+        Fastest lap traces for each selected driver; dashed strip shows A minus B delta in seconds.
+      </p>
     </section>
   );
 }

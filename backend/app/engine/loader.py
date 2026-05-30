@@ -16,7 +16,9 @@ from fastf1.exceptions import (
 
 from app.engine.exceptions import SessionNotFound, SessionNotReady, UpstreamUnavailable
 
-SUPPORTED_SESSION_TYPES: Final[frozenset[str]] = frozenset({"Q", "SQ", "S", "R"})
+SUPPORTED_SESSION_TYPES: Final[frozenset[str]] = frozenset(
+    {"FP1", "FP2", "FP3", "Q", "SQ", "S", "R"}
+)
 SPRINT_SESSION_TYPES: Final[frozenset[str]] = frozenset({"SQ", "S"})
 _NETWORK_ERRORS: Final[tuple[type[BaseException], ...]] = (
     requests.exceptions.RequestException,

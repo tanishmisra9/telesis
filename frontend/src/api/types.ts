@@ -51,6 +51,7 @@ export interface CircuitCorner {
   dist_m: number;
   x: number;
   y: number;
+  speed_class: "low" | "medium" | "high" | null;
 }
 
 export interface DrsZone {
@@ -105,16 +106,18 @@ export interface MetricsResponse {
 
 export interface InsightItem {
   id: string;
-  phrases: string[];
-  refined: string | null;
+  headline_nuggets: string[];
+  profile: Record<string, number>;
+  evidence: string[];
+  confidence: "high" | "medium" | "low";
 }
 
 export interface InsightsResponse {
   session: SessionInfo;
-  mode: "race" | "quali";
+  mode: "practice" | "quali" | "race";
+  verdict: string;
   drivers: InsightItem[];
   constructors: InsightItem[];
-  briefing: string;
 }
 
 export type TelesisApiErrorCode =

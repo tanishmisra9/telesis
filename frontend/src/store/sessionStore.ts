@@ -159,9 +159,7 @@ export const useSessionStore = create<SessionState>((set) => ({
       set({ loadingStep: "Building insights and telemetry" });
       const [insights, metrics, results, raceTrace, stints, tyreDeg, telemetryOverlay] = await Promise.all([
         getInsights(selection.year, selection.round, selection.sessionType),
-        ["Q", "SQ"].includes(selection.sessionType.toUpperCase())
-          ? getMetrics(selection.year, selection.round, selection.sessionType)
-          : Promise.resolve(null),
+        getMetrics(selection.year, selection.round, selection.sessionType),
         getResults(selection.year, selection.round, selection.sessionType),
         getRaceTrace(selection.year, selection.round, selection.sessionType),
         getStints(selection.year, selection.round, selection.sessionType),
@@ -180,7 +178,7 @@ export const useSessionStore = create<SessionState>((set) => ({
         insightsError: null,
         globalLoading: false,
         loadingStep: null,
-        selectedDriver: results.drivers[0]?.abbr ?? null,
+        selectedDriver: null,
       });
     } catch (err) {
       set({

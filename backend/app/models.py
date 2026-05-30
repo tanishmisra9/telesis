@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -57,6 +59,7 @@ class CircuitCorner(BaseModel):
     dist_m: float
     x: float
     y: float
+    speed_class: Literal["low", "medium", "high"] | None = None
 
 
 class DrsZone(BaseModel):
@@ -111,16 +114,18 @@ class MetricsResponse(BaseModel):
 
 class InsightItem(BaseModel):
     id: str  # team name or driver abbr
-    phrases: list[str] = Field(default_factory=list)
-    refined: str | None = None
+    headline_nuggets: list[str] = Field(default_factory=list)
+    profile: dict[str, float] = Field(default_factory=dict)
+    evidence: list[str] = Field(default_factory=list)
+    confidence: Literal["high", "medium", "low"] = "medium"
 
 
 class InsightsResponse(BaseModel):
     session: SessionInfo
-    mode: str  # "race" or "quali"
+    mode: Literal["practice", "quali", "race"]
+    verdict: str
     drivers: list[InsightItem] = Field(default_factory=list)
     constructors: list[InsightItem] = Field(default_factory=list)
-    briefing: str = ""
 
 
 class SessionStatus(BaseModel):

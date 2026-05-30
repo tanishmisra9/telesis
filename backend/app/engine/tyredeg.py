@@ -31,20 +31,25 @@ def _safe_float(value: Any) -> float | None:
 def build_tyredeg_response(session, session_type: str) -> dict[str, Any]:
     session_type = session_type.upper()
     info = _session_info(session, session_type)
-    if session_type in {"Q", "SQ"}:
+    if session_type not in {"R", "S"}:
         return {
             "session": info,
             "drivers": [],
             "applicable": False,
-            "reason": "tyredeg_not_applicable_for_qualifying_sessions",
+            "reason": "tyredeg_only_applicable_for_race_sessions",
         }
 
     laps = session.laps
     if laps is None or laps.empty:
         return {"session": info, "drivers": [], "applicable": True, "reason": None}
 
+    finish_order = {
+        str(row.get("Abbreviation")): int(row.get("Position"))
+        for _, row in session.results.iterrows()
+        if row.get("Abbreviation") is not None and not pd.isna(row.get("Position"))
+    }
     drivers_payload: list[dict[str, Any]] = []
-    for abbr in sorted(laps["Driver"].dropna().unique().tolist()):
+    for abbr in sorted(laps["Driver"].dropna().unique().tolist(), key=lambda a: finish_order.get(str(a), 999)):
         dlaps = laps.pick_drivers(abbr).pick_quicklaps()
         if dlaps.empty or "Stint" not in dlaps.columns:
             continue

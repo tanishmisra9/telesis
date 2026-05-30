@@ -19,13 +19,13 @@ def _session_info(session, session_type: str) -> dict[str, Any]:
 def build_racetrace_response(session, session_type: str) -> dict[str, Any]:
     session_type = session_type.upper()
     info = _session_info(session, session_type)
-    if session_type in {"Q", "SQ"}:
+    if session_type not in {"R", "S"}:
         return {
             "session": info,
             "total_laps": 0,
             "drivers": [],
             "applicable": False,
-            "reason": "racetrace_not_applicable_for_qualifying_sessions",
+            "reason": "racetrace_only_applicable_for_race_sessions",
         }
 
     laps = session.laps
@@ -39,8 +39,13 @@ def build_racetrace_response(session, session_type: str) -> dict[str, Any]:
         }
 
     total_laps = int(laps["LapNumber"].dropna().max()) if "LapNumber" in laps.columns else 0
+    finish_order = {
+        str(row.get("Abbreviation")): int(row.get("Position"))
+        for _, row in session.results.iterrows()
+        if not pd.isna(row.get("Position")) and row.get("Abbreviation") is not None
+    }
     drivers: list[dict[str, Any]] = []
-    for abbr in sorted(laps["Driver"].dropna().unique().tolist()):
+    for abbr in sorted(laps["Driver"].dropna().unique().tolist(), key=lambda a: finish_order.get(str(a), 999)):
         dlaps = laps.pick_drivers(abbr)
         if dlaps.empty:
             continue

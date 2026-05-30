@@ -32,20 +32,20 @@ class LLMRefiner:
 
         url = f"{base_url}/chat/completions"
         prompt = (
-            "Refine this deterministic motorsport insights JSON. "
-            "Rules: do not invent facts, preserve identifiers and numeric values, "
-            "never use em dashes, keep terse analytical phrasing. "
-            "Return strict JSON with keys briefing, drivers, constructors. "
-            "drivers/constructors must be arrays of {id, refined}."
+            "Refine this deterministic telemetry attribution JSON for grammar and fluency only. "
+            "Rules: do not invent facts, preserve identifiers and numeric values, preserve ranking intent, "
+            "never use em dashes, and do not add new claims. "
+            "Return strict JSON with keys verdict, drivers, constructors. "
+            "drivers/constructors must be arrays of {id, headline_nuggets}."
         )
         user_payload = {
-            "briefing": payload.get("briefing", ""),
+            "verdict": payload.get("verdict", ""),
             "drivers": [
-                {"id": item.get("id"), "phrases": item.get("phrases", [])}
+                {"id": item.get("id"), "headline_nuggets": item.get("headline_nuggets", [])}
                 for item in payload.get("drivers", [])
             ],
             "constructors": [
-                {"id": item.get("id"), "phrases": item.get("phrases", [])}
+                {"id": item.get("id"), "headline_nuggets": item.get("headline_nuggets", [])}
                 for item in payload.get("constructors", [])
             ],
         }
@@ -73,26 +73,26 @@ class LLMRefiner:
             return payload
 
         refined_by_id = {
-            str(item.get("id")): str(item.get("refined", "")).replace("—", ",")
+            str(item.get("id")): [str(n).replace("—", ",") for n in item.get("headline_nuggets", [])]
             for item in parsed.get("drivers", [])
             if item.get("id")
         }
         refined_team_by_id = {
-            str(item.get("id")): str(item.get("refined", "")).replace("—", ",")
+            str(item.get("id")): [str(n).replace("—", ",") for n in item.get("headline_nuggets", [])]
             for item in parsed.get("constructors", [])
             if item.get("id")
         }
-        payload["briefing"] = str(parsed.get("briefing", payload.get("briefing", ""))).replace(
+        payload["verdict"] = str(parsed.get("verdict", payload.get("verdict", ""))).replace(
             "—", ","
         )
         for item in payload.get("drivers", []):
             item_id = str(item.get("id", ""))
             if item_id in refined_by_id and refined_by_id[item_id]:
-                item["refined"] = refined_by_id[item_id]
+                item["headline_nuggets"] = refined_by_id[item_id]
         for item in payload.get("constructors", []):
             item_id = str(item.get("id", ""))
             if item_id in refined_team_by_id and refined_team_by_id[item_id]:
-                item["refined"] = refined_team_by_id[item_id]
+                item["headline_nuggets"] = refined_team_by_id[item_id]
         return payload
 
 

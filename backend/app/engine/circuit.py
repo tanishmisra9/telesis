@@ -12,7 +12,7 @@ from app.engine.exceptions import CircuitGeometryUnavailable
 
 # Increment whenever circuit extraction logic changes in a way that should
 # invalidate cached `circuit_json`.
-CIRCUIT_LOGIC_VERSION = 3
+CIRCUIT_LOGIC_VERSION = 4
 
 # FastF1 DRS channel encoding (telemetry["DRS"]):
 # - 0: DRS not available/off
@@ -163,6 +163,17 @@ def _drs_active_sample_count(telemetry: pd.DataFrame) -> int:
     return int(np.isin(drs, list(DRS_ACTIVE_VALUES)).sum())
 
 
+def _corner_min_speed(car_data: pd.DataFrame, corner_dist_m: float) -> float | None:
+    if car_data.empty or "Distance" not in car_data.columns or "Speed" not in car_data.columns:
+        return None
+    dist = car_data["Distance"].to_numpy(dtype=float)
+    speed = car_data["Speed"].to_numpy(dtype=float)
+    mask = (dist >= corner_dist_m - 75.0) & (dist <= corner_dist_m + 75.0)
+    if not np.any(mask):
+        return None
+    return float(np.nanmin(speed[mask]))
+
+
 def _pick_representative_drs_telemetry(session) -> pd.DataFrame | None:
     """Pick lap telemetry with highest DRS-active sample count.
 
@@ -307,6 +318,46 @@ def _extract_corners(session, rotation_deg: float, cx: float, cy: float) -> list
     return corners
 
 
+def _classify_corner_speed(speed_kmh: float) -> str:
+    if speed_kmh < 130.0:
+        return "low"
+    if speed_kmh <= 200.0:
+        return "medium"
+    return "high"
+
+
+def _corner_speed_classes(session, corners: list[dict[str, Any]]) -> dict[int, str]:
+    if not corners:
+        return {}
+    per_corner_samples: dict[int, list[float]] = {}
+    for abbr in sorted(session.laps["Driver"].dropna().unique().tolist()):
+        laps = session.laps.pick_drivers(abbr).pick_quicklaps()
+        if laps.empty:
+            continue
+        fastest = laps.pick_fastest()
+        if fastest is None:
+            continue
+        try:
+            car = fastest.get_car_data().add_distance()
+        except Exception:
+            continue
+        for corner in corners:
+            cnum = int(corner.get("number", 0))
+            cdist = float(corner.get("dist_m", 0.0))
+            min_speed = _corner_min_speed(car, cdist)
+            if min_speed is None:
+                continue
+            per_corner_samples.setdefault(cnum, []).append(float(min_speed))
+    classifications: dict[int, str] = {}
+    for corner in corners:
+        cnum = int(corner.get("number", 0))
+        samples = per_corner_samples.get(cnum, [])
+        if not samples:
+            continue
+        classifications[cnum] = _classify_corner_speed(float(np.median(samples)))
+    return classifications
+
+
 def build_circuit_response(session) -> dict[str, Any]:
     """Build circuit payload from a loaded FastF1 session."""
     fastest = session.laps.pick_fastest()
@@ -347,11 +398,14 @@ def build_circuit_response(session) -> dict[str, Any]:
 
     # DRS spans are detected from telemetry (code semantics), then mapped
     # onto the fastest-lap geometry by slicing XY using distance meters.
-    drs_spans = _detect_drs_spans(tel)
-    if not drs_spans:
-        rep_tel = _pick_representative_drs_telemetry(session)
-        if rep_tel is not None:
-            drs_spans = _detect_drs_spans(rep_tel) or []
+    session_year = int(session.event.get("Year", session.date.year))
+    drs_spans: list[dict[str, float]] = []
+    if session_year < 2026:
+        drs_spans = _detect_drs_spans(tel)
+        if not drs_spans:
+            rep_tel = _pick_representative_drs_telemetry(session)
+            if rep_tel is not None:
+                drs_spans = _detect_drs_spans(rep_tel) or []
 
     drs_zones: list[dict[str, Any]] = []
     if drs_spans and "Distance" in tel.columns:
@@ -369,6 +423,10 @@ def build_circuit_response(session) -> dict[str, Any]:
                     }
                 )
     corners = _extract_corners(session, rotation_deg, cx, cy)
+    corner_class = _corner_speed_classes(session, corners)
+    for corner in corners:
+        cnum = int(corner.get("number", 0))
+        corner["speed_class"] = corner_class.get(cnum)
 
     circuit_name = str(session.event.get("Location", session.event.get("EventName", "Unknown")))
     try:

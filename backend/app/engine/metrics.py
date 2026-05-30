@@ -20,7 +20,7 @@ def _empty_metrics_payload(session, session_type: str) -> dict[str, Any]:
             "event": event_name,
         },
         "applicable": False,
-        "reason": "metrics_not_applicable_for_race_sessions",
+        "reason": "metrics_not_available",
         "drivers": [],
         "fastest_corner": None,
     }
@@ -64,10 +64,8 @@ def _full_throttle_pct(car_data: pd.DataFrame) -> float:
 
 
 def build_metrics_response(session, session_type: str, circuit_payload: dict[str, Any]) -> dict[str, Any]:
-    """Build per-driver single-lap metrics for Q/SQ sessions."""
+    """Build per-driver single-lap metrics for all timed session types."""
     session_type = session_type.upper()
-    if session_type in {"R", "S"}:
-        return _empty_metrics_payload(session, session_type)
 
     year = int(session.event.get("Year", session.date.year))
     round_number = int(session.event["RoundNumber"])
@@ -104,7 +102,7 @@ def build_metrics_response(session, session_type: str, circuit_payload: dict[str
             if cmin is None:
                 continue
             corner_speeds.append({"number": cnum, "min_speed_kmh": cmin})
-            if fastest_corner is None or cmin < fastest_corner["min_speed_kmh"]:
+            if fastest_corner is None or cmin > fastest_corner["min_speed_kmh"]:
                 fastest_corner = {"number": cnum, "min_speed_kmh": cmin}
 
         drivers.append(
@@ -128,8 +126,8 @@ def build_metrics_response(session, session_type: str, circuit_payload: dict[str
             "type": session_type,
             "event": event_name,
         },
-        "applicable": True,
-        "reason": None,
+        "applicable": bool(drivers),
+        "reason": None if drivers else "metrics_not_available",
         "drivers": drivers,
         "fastest_corner": fastest_corner,
     }

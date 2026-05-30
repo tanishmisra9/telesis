@@ -8,7 +8,9 @@ from typing import Any
 
 import fastf1
 
-_SESSION_ORDER = ("FP1", "FP2", "FP3", "Q", "SQ", "S", "R")
+_ALL_SESSION_TYPES = ("FP1", "FP2", "FP3", "Q", "SQ", "S", "R")
+_STANDARD_WEEKEND = ("FP1", "FP2", "FP3", "Q", "R")
+_SPRINT_WEEKEND_2024 = ("FP1", "SQ", "S", "Q", "R")
 _schedule_cache: dict[int, dict[str, Any]] = {}
 
 
@@ -27,14 +29,19 @@ def _normalize_date(value: Any) -> str | None:
 
 
 def _session_types_for_event(event: Any) -> list[str]:
-    available: list[str] = []
-    for session_type in _SESSION_ORDER:
+    available: set[str] = set()
+    for session_type in _ALL_SESSION_TYPES:
         try:
             event.get_session_name(session_type)
         except Exception:
             continue
-        available.append(session_type)
-    return available
+        available.add(session_type)
+    preferred = _SPRINT_WEEKEND_2024 if {"SQ", "S"}.issubset(available) else _STANDARD_WEEKEND
+    ordered = [session_type for session_type in preferred if session_type in available]
+    for fallback in _ALL_SESSION_TYPES:
+        if fallback in available and fallback not in ordered:
+            ordered.append(fallback)
+    return ordered
 
 
 def _is_testing_round(event_name: str, country: str) -> bool:
