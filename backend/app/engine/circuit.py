@@ -12,7 +12,7 @@ from app.engine.exceptions import CircuitGeometryUnavailable
 
 # Increment whenever circuit extraction logic changes in a way that should
 # invalidate cached `circuit_json`.
-CIRCUIT_LOGIC_VERSION = 2
+CIRCUIT_LOGIC_VERSION = 3
 
 # FastF1 DRS channel encoding (telemetry["DRS"]):
 # - 0: DRS not available/off
@@ -20,8 +20,13 @@ CIRCUIT_LOGIC_VERSION = 2
 # - 8: Detected/eligible once in activation zone
 # - 10/12/14: DRS on / open
 #
-# M4.5 previously used {10,12,14}; M4.6 widens to include 8 and adds a
-# representative-lap fallback when the fastest lap is DRS-all-zero.
+# DRS diagnostic (2024 R1 Bahrain):
+# - Race fastest lap unique DRS codes: [0]
+# - Representative mid-race green-flag lap unique codes: [0, 8, 12, 14]
+# - Qualifying fastest lap unique codes: [8, 12, 14]
+#
+# We keep 8/10/12/14 as active states for compatibility with FastF1 code
+# variations observed across sessions.
 DRS_ACTIVE_VALUES = frozenset({8, 10, 12, 14})
 DEFAULT_TRACK_WIDTH = 200.0
 
@@ -148,39 +153,70 @@ def _slice_points_by_distance(
     return _points_from_xy(x[i0 : i1 + 1], y[i0 : i1 + 1])
 
 
-def _pick_representative_drs_telemetry(session) -> pd.DataFrame | None:
-    """Pick a lap whose telemetry includes DRS-active samples.
+def _drs_active_sample_count(telemetry: pd.DataFrame) -> int:
+    if telemetry is None or telemetry.empty or "DRS" not in telemetry.columns:
+        return 0
+    drs = telemetry["DRS"].to_numpy(dtype=float)
+    drs = drs[~np.isnan(drs)]
+    if drs.size == 0:
+        return 0
+    return int(np.isin(drs, list(DRS_ACTIVE_VALUES)).sum())
 
-    This is used when the fastest lap is DRS-all-zero for the race.
+
+def _pick_representative_drs_telemetry(session) -> pd.DataFrame | None:
+    """Pick lap telemetry with highest DRS-active sample count.
+
+    Order:
+    1) Leader's green-flag laps.
+    2) All drivers, all laps fallback.
     """
+
+    def best_from_laps(laps: pd.DataFrame) -> pd.DataFrame | None:
+        best_tel: pd.DataFrame | None = None
+        best_count = 0
+        for _, lap in laps.iterlaps():
+            try:
+                tel = lap.get_telemetry()
+            except Exception:
+                continue
+            count = _drs_active_sample_count(tel)
+            if count > best_count:
+                best_count = count
+                best_tel = tel
+        return best_tel if best_count > 0 else None
+
+    try:
+        leader_abbr = str(session.results.iloc[0]["Abbreviation"])
+        leader_laps = session.laps.pick_drivers(leader_abbr)
+        if "TrackStatus" in leader_laps.columns:
+            leader_laps = leader_laps[
+                leader_laps["TrackStatus"].fillna("").astype(str) == "1"
+            ]
+        best = best_from_laps(leader_laps)
+        if best is not None:
+            return best
+    except Exception:
+        pass
+
     try:
         driver_abbrs = sorted(session.laps["Driver"].dropna().unique().tolist())
     except Exception:
         driver_abbrs = []
 
-    # Prefer quicklaps for responsiveness; fall back to all laps if needed.
+    overall_best: pd.DataFrame | None = None
+    overall_best_count = 0
     for abbr in driver_abbrs:
-        try:
-            laps = session.laps.pick_drivers(abbr).pick_quicklaps()
-            if laps.empty:
-                laps = session.laps.pick_drivers(abbr)
-            rep_lap = laps.pick_fastest()
-            if rep_lap is None:
-                continue
-            tel = rep_lap.get_telemetry()
-        except Exception:
+        laps = session.laps.pick_drivers(abbr)
+        if laps.empty:
             continue
-
-        try:
-            if tel is None or tel.empty or "DRS" not in tel.columns:
-                continue
-            spans = _detect_drs_spans(tel)
-            if spans:
-                return tel
-        except Exception:
+        candidate = best_from_laps(laps)
+        if candidate is None:
             continue
-
-    return None
+        count = _drs_active_sample_count(candidate)
+        if count > overall_best_count:
+            overall_best_count = count
+            overall_best = candidate
+    return overall_best
 
 
 def _sector_time_seconds(value: Any) -> float | None:

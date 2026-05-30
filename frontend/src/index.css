@@ -6,11 +6,15 @@
 
 @layer base {
   :root {
-    --canvas: #0b0b0f;
-    --panel: #15151b;
-    --glass: rgba(20, 20, 25, 0.65);
+    --canvas: #0a0a0e;
+    --surface-1: #101015;
+    --surface-2: #16161d;
+    --surface-3: #1c1c24;
+    --glass: rgba(22, 22, 29, 0.72);
     --text: #f5f5f7;
-    --muted-text: rgba(245, 245, 247, 0.62);
+    --text-secondary: rgba(245, 245, 247, 0.66);
+    --text-tertiary: rgba(245, 245, 247, 0.42);
+    --muted-text: rgba(245, 245, 247, 0.66);
     --hairline: rgba(255, 255, 255, 0.08);
     --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
     --accent: #e8a33d;
@@ -48,7 +52,7 @@
     color: var(--text);
     font-family: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text",
       "SF Pro Display", system-ui, sans-serif;
-    font-feature-settings: "ss01", "cv11";
+    font-feature-settings: "ss01", "ss03", "cv11", "tnum";
     text-rendering: optimizeLegibility;
   }
 
@@ -92,6 +96,11 @@
       rgba(0, 0, 0, 0.96) 72%,
       rgba(0, 0, 0, 0) 100%
     );
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.005em;
   }
 }
 

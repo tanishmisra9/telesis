@@ -7,8 +7,15 @@ const config: Config = {
     extend: {
       colors: {
         canvas: colors.canvas,
+        "surface-1": colors.surface1,
+        "surface-2": colors.surface2,
+        "surface-3": colors.surface3,
+        "surface-glass": colors.surfaceGlass,
         panel: colors.panel,
         glass: colors.glass,
+        primary: colors.textPrimary,
+        secondary: colors.textSecondary,
+        tertiary: colors.textTertiary,
         text: colors.text,
         muted: colors.mutedText,
         hairline: colors.hairline,
@@ -39,11 +46,14 @@ const config: Config = {
         "section-title": typography.sizes.sectionTitle,
         "card-heading": typography.sizes.cardHeading,
         body: typography.sizes.body,
+        "body-sm": typography.sizes.secondaryBody,
         "secondary-body": typography.sizes.secondaryBody,
         label: typography.sizes.label,
+        caption: typography.sizes.caption,
         micro: typography.sizes.micro,
       },
       letterSpacing: {
+        display: typography.tracking.display,
         hero: typography.tracking.hero,
         "section-title": typography.tracking.sectionTitle,
         "card-heading": typography.tracking.cardHeading,
@@ -76,6 +86,9 @@ const config: Config = {
         "panel-hover":
           "0 2px 2px rgba(0,0,0,0.22), 0 8px 24px rgba(0,0,0,0.38), 0 24px 56px rgba(0,0,0,0.28)",
         "accent-glow": "0 0 40px rgba(232, 163, 61, 0.14)",
+        "ih-1": colors.ih1,
+        "ih-2": colors.ih2,
+        "ih-3": colors.ih3,
       },
       backdropBlur: {
         glass: "24px",

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import type { CircuitResponse } from "../api/types";
+import type { CircuitResponse, ResultsResponse, TelemetryOverlayResponse } from "../api/types";
 import { circuit, colors } from "../design/tokens";
 
 const MARGIN = 80;
@@ -164,10 +164,29 @@ function chevronPoints(
 
 interface CircuitMapProps {
   circuit: CircuitResponse;
+  telemetryOverlay?: TelemetryOverlayResponse | null;
+  results?: ResultsResponse | null;
+  selectedDriver?: string | null;
+  onSelectDriver?: (abbr: string) => void;
 }
 
-export function CircuitMap({ circuit: circuitData }: CircuitMapProps) {
+function speedColor(value: number, min: number, max: number): string {
+  const t = Math.max(0, Math.min(1, (value - min) / (max - min || 1)));
+  const r = Math.round(70 + t * 180);
+  const g = Math.round(90 + (1 - Math.abs(t - 0.5) * 2) * 120);
+  const b = Math.round(220 - t * 150);
+  return `rgb(${r},${g},${b})`;
+}
+
+export function CircuitMap({
+  circuit: circuitData,
+  telemetryOverlay,
+  results,
+  selectedDriver,
+  onSelectDriver,
+}: CircuitMapProps) {
   const [hoveredCorner, setHoveredCorner] = useState<number | null>(null);
+  const [layer, setLayer] = useState<"sectors" | "speed" | "drs">("sectors");
   const prefersReducedMotion = useReducedMotion();
   const cornerMode = CORNER_RENDER_MODE;
 
@@ -213,6 +232,10 @@ export function CircuitMap({ circuit: circuitData }: CircuitMapProps) {
   const startY = start ? flipY(start[1], circuitData.bbox) : 0;
   const sfNormalX = -startTangent[1];
   const sfNormalY = startTangent[0];
+  const speedEntry = telemetryOverlay?.drivers.find((d) => d.abbr === selectedDriver) ?? telemetryOverlay?.drivers[0];
+  const speedValues = speedEntry?.speed_along_centerline ?? [];
+  const speedMin = speedValues.length ? Math.min(...speedValues) : 0;
+  const speedMax = speedValues.length ? Math.max(...speedValues) : 1;
 
   return (
     <motion.div
@@ -225,12 +248,35 @@ export function CircuitMap({ circuit: circuitData }: CircuitMapProps) {
         <h2 className="text-card-heading font-medium tracking-card-heading text-text">
           Circuit map
         </h2>
-        <p className="text-micro text-muted">
-          {circuitData.name}
-          {circuitData.length_m > 0
-            ? ` · ${(circuitData.length_m / 1000).toFixed(3)} km`
-            : ""}
-        </p>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-pill border border-line bg-glass p-0.5">
+            {(["sectors", "speed", "drs"] as const).map((name) => (
+              <button
+                key={name}
+                type="button"
+                className={`rounded-pill px-2 py-1 text-micro ${
+                  layer === name ? "bg-accent-tint text-accent" : "text-muted"
+                }`}
+                onClick={() => setLayer(name)}
+              >
+                {name === "drs" ? "DRS" : name[0].toUpperCase() + name.slice(1)}
+              </button>
+            ))}
+          </div>
+          {layer === "speed" && telemetryOverlay?.drivers.length && (
+            <select
+              value={speedEntry?.abbr ?? ""}
+              onChange={(e) => onSelectDriver?.(e.target.value)}
+              className="rounded-pill border border-line bg-surface-3 px-2 py-1 text-micro"
+            >
+              {(results?.drivers ?? telemetryOverlay.drivers).map((d) => (
+                <option key={d.abbr} value={d.abbr}>
+                  {d.abbr}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-micro text-muted">
@@ -271,7 +317,8 @@ export function CircuitMap({ circuit: circuitData }: CircuitMapProps) {
           strokeWidth={1.2}
         />
 
-        {sectorSegments.map((segment, idx) => (
+        {layer === "sectors" &&
+          sectorSegments.map((segment, idx) => (
           <path
             key={`sector-${idx}`}
             d={polylinePath(segment.points, circuitData.bbox)}
@@ -284,9 +331,28 @@ export function CircuitMap({ circuit: circuitData }: CircuitMapProps) {
             strokeLinejoin="round"
             opacity={circuitData.sector_splits ? 1 : 0.45}
           />
-        ))}
+          ))}
 
-        {circuitData.drs_zones.map((zone, idx) => (
+        {layer === "speed" &&
+          speedValues.length > 2 &&
+          circuitData.centerline.slice(1).map((point, idx) => {
+            const prev = circuitData.centerline[idx];
+            const val = speedValues[idx] ?? speedValues[0];
+            return (
+              <line
+                key={`speed-${idx}`}
+                x1={prev[0]}
+                y1={flipY(prev[1], circuitData.bbox)}
+                x2={point[0]}
+                y2={flipY(point[1], circuitData.bbox)}
+                stroke={speedColor(val, speedMin, speedMax)}
+                strokeWidth={6}
+                strokeLinecap="round"
+              />
+            );
+          })}
+
+        {(layer === "drs" ? circuitData.drs_zones : []).map((zone, idx) => (
           <g key={`drs-${idx}`}>
             <path
               d={polylinePath(zone.polyline, circuitData.bbox)}

@@ -10,6 +10,7 @@ from app.cache import enable_cache, init_db
 from app.config import get_settings
 from app.engine.exceptions import (
     CircuitGeometryUnavailable,
+    InvalidDriver,
     SessionNotFound,
     SessionNotReady,
     UpstreamUnavailable,
@@ -92,4 +93,12 @@ async def circuit_geometry_unavailable_handler(
             "circuit_geometry_unavailable",
             str(exc) or "Circuit geometry could not be built for this session",
         ),
+    )
+
+
+@app.exception_handler(InvalidDriver)
+async def invalid_driver_handler(_request: Request, exc: InvalidDriver) -> JSONResponse:
+    return JSONResponse(
+        status_code=404,
+        content=_error_body("invalid_driver", str(exc) or "Invalid driver selection"),
     )

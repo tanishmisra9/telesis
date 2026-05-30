@@ -1,84 +1,92 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { getSchedule } from "../api/client";
 import { useSessionStore } from "../store/sessionStore";
-import type { SessionSelection } from "../api/types";
-
-const YEARS = Array.from({ length: 9 }, (_, i) => 2018 + i);
-const ROUNDS = Array.from({ length: 24 }, (_, i) => i + 1);
-const SESSION_TYPES = ["Q", "SQ", "S", "R"] as const;
+import type { ScheduleEntry, SessionSelection } from "../api/types";
 
 const DEFAULT_YEAR = 2024;
-const DEFAULT_ROUND = 1;
-const DEFAULT_SESSION = "R";
 
 export function SessionPicker() {
   const loadSession = useSessionStore((s) => s.loadSession);
-  const paceLoading = useSessionStore((s) => s.paceLoading);
-  const circuitLoading = useSessionStore((s) => s.circuitLoading);
-  const loading = paceLoading || circuitLoading;
+  const selection = useSessionStore((s) => s.selection);
+  const globalLoading = useSessionStore((s) => s.globalLoading);
 
   const [year, setYear] = useState(DEFAULT_YEAR);
-  const [round, setRound] = useState(DEFAULT_ROUND);
-  const [sessionType, setSessionType] = useState<string>(DEFAULT_SESSION);
+  const [rounds, setRounds] = useState<ScheduleEntry[]>([]);
+  const [open, setOpen] = useState(false);
 
-  const handleLoad = () => {
-    const selection: SessionSelection = { year, round, sessionType };
-    void loadSession(selection);
-  };
+  useEffect(() => {
+    let cancelled = false;
+    void getSchedule(year).then((resp) => {
+      if (!cancelled) setRounds(resp.rounds);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [year]);
 
-  const inputClass =
-    "rounded-pill border border-line bg-glass px-3 py-1.5 text-label text-text backdrop-blur-glass focus:outline-none focus:ring-2 focus:ring-accent-ring";
+  const label = useMemo(() => {
+    if (!selection) return "Select session";
+    const event = rounds.find((r) => r.round === selection.round)?.event_name ?? `Round ${selection.round}`;
+    return `${event} ${selection.year} · ${selection.sessionType.toUpperCase()}`;
+  }, [selection, rounds]);
+
+  const years = Array.from({ length: 8 }, (_, i) => 2026 - i);
 
   return (
-    <form
-      className="flex flex-wrap items-center gap-2"
-      onSubmit={(e) => {
-        e.preventDefault();
-        handleLoad();
-      }}
-    >
-      <select
-        className={inputClass}
-        value={year}
-        onChange={(e) => setYear(Number(e.target.value))}
-        aria-label="Season"
-      >
-        {YEARS.map((y) => (
-          <option key={y} value={y}>
-            {y}
-          </option>
-        ))}
-      </select>
-      <select
-        className={inputClass}
-        value={round}
-        onChange={(e) => setRound(Number(e.target.value))}
-        aria-label="Round"
-      >
-        {ROUNDS.map((r) => (
-          <option key={r} value={r}>
-            R{r}
-          </option>
-        ))}
-      </select>
-      <select
-        className={inputClass}
-        value={sessionType}
-        onChange={(e) => setSessionType(e.target.value)}
-        aria-label="Session type"
-      >
-        {SESSION_TYPES.map((t) => (
-          <option key={t} value={t}>
-            {t}
-          </option>
-        ))}
-      </select>
+    <div className="relative">
       <button
-        type="submit"
-        disabled={loading}
-        className="rounded-pill bg-accent px-4 py-1.5 text-label font-medium text-accent-contrast shadow-panel transition-colors duration-200 hover:bg-accent-hover disabled:opacity-50"
+        type="button"
+        className="rounded-pill border border-line bg-surface-3 px-3 py-1.5 text-label text-primary"
+        onClick={() => setOpen((v) => !v)}
       >
-        {loading ? "Loading…" : "Load"}
+        <span className="mr-2 inline-block h-2 w-2 rounded-full bg-accent" />
+        {label} ▾
       </button>
-    </form>
+      {open && (
+        <div className="absolute right-0 top-10 z-40 w-[480px] max-w-[calc(100vw-1rem)] rounded-card border border-line bg-surface-glass p-3 shadow-panel backdrop-blur-modal">
+          <div className="mb-3 flex gap-1">
+            {years.map((y) => (
+              <button
+                key={y}
+                type="button"
+                className={`rounded-pill px-2 py-1 text-caption ${
+                  y === year ? "bg-accent-tint text-accent" : "bg-surface-3 text-secondary"
+                }`}
+                onClick={() => setYear(y)}
+              >
+                {y}
+              </button>
+            ))}
+          </div>
+          <div className="max-h-[60vh] space-y-2 overflow-y-auto">
+            {rounds.map((round) => (
+              <div key={round.round} className="rounded-inner border border-line bg-surface-2 p-2">
+                <p className="text-label text-primary">{round.event_name}</p>
+                <p className="text-caption text-secondary">
+                  {round.country} · {round.location} · {round.event_date}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {round.session_types.map((sessionType) => (
+                    <button
+                      key={`${round.round}-${sessionType}`}
+                      type="button"
+                      onClick={() => {
+                        const next: SessionSelection = { year, round: round.round, sessionType };
+                        void loadSession(next);
+                        setOpen(false);
+                      }}
+                      disabled={globalLoading}
+                      className="rounded-pill bg-surface-3 px-2 py-1 text-micro text-primary hover:bg-accent-tint"
+                    >
+                      {sessionType}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

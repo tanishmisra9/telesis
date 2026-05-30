@@ -71,15 +71,17 @@ class CircuitResponse(BaseModel):
     rotation_applied_deg: float
     bbox: CircuitBBox
     centerline: list[tuple[float, float]]
+    centerline_dist_m: list[float] = Field(default_factory=list)
     inner: list[tuple[float, float]]
     outer: list[tuple[float, float]]
     corners: list[CircuitCorner] = Field(default_factory=list)
     drs_zones: list[DrsZone] = Field(default_factory=list)
+    sector_splits: tuple[float, float] | None = None
 
 
 class CornerSpeed(BaseModel):
     number: int
-    speed_kmh: float
+    min_speed_kmh: float
 
 
 class DriverMetricEntry(BaseModel):
@@ -89,14 +91,14 @@ class DriverMetricEntry(BaseModel):
     top_speed_kmh: float
     min_speed_kmh: float
     full_throttle_pct: float
-    fastest_corner: dict | None = None
     deployment_loss_kmh: float
     corner_speeds: list[CornerSpeed] = Field(default_factory=list)
+    speed_along_centerline: list[float] | None = None
 
 
 class FastestCorner(BaseModel):
     number: int
-    speed_kmh: float
+    min_speed_kmh: float
 
 
 class MetricsResponse(BaseModel):
@@ -118,6 +120,7 @@ class InsightsResponse(BaseModel):
     mode: str  # "race" or "quali"
     drivers: list[InsightItem] = Field(default_factory=list)
     constructors: list[InsightItem] = Field(default_factory=list)
+    briefing: str = ""
 
 
 class SessionStatus(BaseModel):
@@ -131,8 +134,15 @@ class ScheduleEntry(BaseModel):
     round: int
     event_name: str
     country: str | None = None
+    location: str | None = None
+    event_date: str | None = None
     has_sprint: bool
     session_types: list[str] = Field(default_factory=list)
+
+
+class ScheduleResponse(BaseModel):
+    year: int
+    rounds: list[ScheduleEntry] = Field(default_factory=list)
 
 
 class ProcessSessionResponse(BaseModel):
@@ -140,18 +150,122 @@ class ProcessSessionResponse(BaseModel):
     status: str
 
 
-class ResultEntry(BaseModel):
+class DriverResultEntry(BaseModel):
     abbr: str
     full_name: str | None = None
+    driver_number: int | None = None
     team: str
     team_color: str | None = None
     headshot_url: str | None = None
-    driver_number: int | None = None
-    grid: int | None = None
-    position: int | None = None
+    country_code: str | None = None
+    grid_position: int | None = None
+    finish_position: int | None = None
     status: str | None = None
+    fastest_lap_s: float | None = None
+    fastest_lap_rank: int | None = None
 
 
 class ResultsResponse(BaseModel):
     session: SessionInfo
-    results: list[ResultEntry] = Field(default_factory=list)
+    drivers: list[DriverResultEntry] = Field(default_factory=list)
+
+
+class DriverTraceEntry(BaseModel):
+    abbr: str
+    team: str
+    positions: list[int | None] = Field(default_factory=list)
+
+
+class RaceTraceResponse(BaseModel):
+    session: SessionInfo
+    total_laps: int
+    drivers: list[DriverTraceEntry] = Field(default_factory=list)
+    applicable: bool
+    reason: str | None = None
+
+
+class StintEntry(BaseModel):
+    stint_number: int
+    compound: str
+    lap_start: int
+    lap_end: int
+    tyre_age_start: int
+    lap_count: int
+
+
+class DriverStintsEntry(BaseModel):
+    abbr: str
+    team: str
+    stints: list[StintEntry] = Field(default_factory=list)
+
+
+class StintsResponse(BaseModel):
+    session: SessionInfo
+    total_laps: int
+    drivers: list[DriverStintsEntry] = Field(default_factory=list)
+    applicable: bool
+    reason: str | None = None
+
+
+class SpeedTraceLap(BaseModel):
+    abbr: str
+    team: str
+    lap_time_s: float
+    distance_m: list[float] = Field(default_factory=list)
+    speed_kmh: list[float] = Field(default_factory=list)
+    throttle_pct: list[float] = Field(default_factory=list)
+    brake: list[float] = Field(default_factory=list)
+    gear: list[int] = Field(default_factory=list)
+
+
+class SpeedTraceCorner(BaseModel):
+    number: int
+    dist_m: float
+
+
+class SpeedTraceResponse(BaseModel):
+    session: SessionInfo
+    sector_splits_m: list[float] | None = None
+    corners: list[SpeedTraceCorner] = Field(default_factory=list)
+    a: SpeedTraceLap
+    b: SpeedTraceLap
+    delta_a_minus_b_s: list[float] = Field(default_factory=list)
+
+
+class StintDegPoint(BaseModel):
+    tyre_age: int
+    lap_time_s: float
+
+
+class DriverStintDegEntry(BaseModel):
+    stint_number: int
+    compound: str
+    points: list[StintDegPoint] = Field(default_factory=list)
+    slope_s_per_lap: float
+    intercept_s: float
+
+
+class DriverTyreDegEntry(BaseModel):
+    abbr: str
+    team: str
+    stints: list[DriverStintDegEntry] = Field(default_factory=list)
+
+
+class TyreDegResponse(BaseModel):
+    session: SessionInfo
+    drivers: list[DriverTyreDegEntry] = Field(default_factory=list)
+    applicable: bool
+    reason: str | None = None
+
+
+class TelemetryOverlayDriverEntry(BaseModel):
+    abbr: str
+    team: str
+    speed_along_centerline: list[float] = Field(default_factory=list)
+
+
+class TelemetryOverlayResponse(BaseModel):
+    session: SessionInfo
+    applicable: bool
+    reason: str | None = None
+    drivers: list[TelemetryOverlayDriverEntry] = Field(default_factory=list)

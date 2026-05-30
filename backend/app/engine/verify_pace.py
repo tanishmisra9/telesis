@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 import sys
 
-from app.cache import enable_cache, init_db
-from app.engine.pipeline import run_pace_pipeline
+from app.cache import enable_cache, init_db, make_key
+from app.engine.pipeline import ensure_pace
 
 
 def main() -> None:
@@ -14,7 +14,8 @@ def main() -> None:
     enable_cache()
     year, round_num, session_type = 2024, 1, "R"
     print(f"Running pace pipeline for {year} round {round_num} {session_type}...")
-    payload = run_pace_pipeline(year, round_num, session_type)
+    key = make_key(year, round_num, session_type)
+    payload = ensure_pace(key, year, round_num, session_type)
     print(f"\nEvent: {payload['session']['event']}")
     print("\nDrivers (sorted by mean, fastest first):")
     print(f"{'ABBR':<6} {'TEAM':<22} {'MEAN':>8} {'MED':>8} {'Q1':>8} {'Q3':>8} {'WLO':>8} {'WHI':>8} {'N':>4} {'GAP':>6}")

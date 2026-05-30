@@ -87,6 +87,7 @@ export interface DriverMetricEntry {
   full_throttle_pct: number;
   deployment_loss_kmh: number;
   corner_speeds: CornerSpeed[];
+  speed_along_centerline?: number[] | null;
 }
 
 export interface FastestCorner {
@@ -113,13 +114,15 @@ export interface InsightsResponse {
   mode: "race" | "quali";
   drivers: InsightItem[];
   constructors: InsightItem[];
+  briefing: string;
 }
 
 export type TelesisApiErrorCode =
   | "session_not_found"
   | "session_not_ready"
   | "upstream_unavailable"
-  | "circuit_geometry_unavailable";
+  | "circuit_geometry_unavailable"
+  | "invalid_driver";
 
 export interface TelesisApiErrorBody {
   error: TelesisApiErrorCode;
@@ -146,4 +149,140 @@ export interface PaceChartRow {
 export interface InsightSelection {
   kind: "driver" | "constructor";
   id: string;
+}
+
+export interface ScheduleEntry {
+  round: number;
+  event_name: string;
+  country: string | null;
+  location: string | null;
+  event_date: string | null;
+  has_sprint: boolean;
+  session_types: string[];
+}
+
+export interface ScheduleResponse {
+  year: number;
+  rounds: ScheduleEntry[];
+}
+
+export interface DriverResultEntry {
+  abbr: string;
+  full_name: string | null;
+  driver_number: number | null;
+  team: string;
+  team_color: string | null;
+  headshot_url: string | null;
+  country_code: string | null;
+  grid_position: number | null;
+  finish_position: number | null;
+  status: string | null;
+  fastest_lap_s: number | null;
+  fastest_lap_rank: number | null;
+}
+
+export interface ResultsResponse {
+  session: SessionInfo;
+  drivers: DriverResultEntry[];
+}
+
+export interface DriverTraceEntry {
+  abbr: string;
+  team: string;
+  positions: Array<number | null>;
+}
+
+export interface RaceTraceResponse {
+  session: SessionInfo;
+  total_laps: number;
+  drivers: DriverTraceEntry[];
+  applicable: boolean;
+  reason: string | null;
+}
+
+export interface StintEntry {
+  stint_number: number;
+  compound: string;
+  lap_start: number;
+  lap_end: number;
+  tyre_age_start: number;
+  lap_count: number;
+}
+
+export interface DriverStintsEntry {
+  abbr: string;
+  team: string;
+  stints: StintEntry[];
+}
+
+export interface StintsResponse {
+  session: SessionInfo;
+  total_laps: number;
+  drivers: DriverStintsEntry[];
+  applicable: boolean;
+  reason: string | null;
+}
+
+export interface SpeedTraceLap {
+  abbr: string;
+  team: string;
+  lap_time_s: number;
+  distance_m: number[];
+  speed_kmh: number[];
+  throttle_pct: number[];
+  brake: number[];
+  gear: number[];
+}
+
+export interface SpeedTraceCorner {
+  number: number;
+  dist_m: number;
+}
+
+export interface SpeedTraceResponse {
+  session: SessionInfo;
+  sector_splits_m: number[] | null;
+  corners: SpeedTraceCorner[];
+  a: SpeedTraceLap;
+  b: SpeedTraceLap;
+  delta_a_minus_b_s: number[];
+}
+
+export interface StintDegPoint {
+  tyre_age: number;
+  lap_time_s: number;
+}
+
+export interface DriverStintDegEntry {
+  stint_number: number;
+  compound: string;
+  points: StintDegPoint[];
+  slope_s_per_lap: number;
+  intercept_s: number;
+}
+
+export interface DriverTyreDegEntry {
+  abbr: string;
+  team: string;
+  stints: DriverStintDegEntry[];
+}
+
+export interface TyreDegResponse {
+  session: SessionInfo;
+  drivers: DriverTyreDegEntry[];
+  applicable: boolean;
+  reason: string | null;
+}
+
+export interface TelemetryOverlayDriverEntry {
+  abbr: string;
+  team: string;
+  speed_along_centerline: number[];
+}
+
+export interface TelemetryOverlayResponse {
+  session: SessionInfo;
+  applicable: boolean;
+  reason: string | null;
+  drivers: TelemetryOverlayDriverEntry[];
 }

@@ -20,6 +20,10 @@ CREATE TABLE IF NOT EXISTS processed_session (
     metrics_json TEXT,
     insights_json TEXT,
     results_json TEXT,
+    racetrace_json TEXT,
+    stints_json TEXT,
+    tyredeg_json TEXT,
+    telemetry_overlay_json TEXT,
     error_message TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -59,6 +63,10 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
     add_column_if_missing("metrics_json")
     add_column_if_missing("insights_json")
     add_column_if_missing("results_json")
+    add_column_if_missing("racetrace_json")
+    add_column_if_missing("stints_json")
+    add_column_if_missing("tyredeg_json")
+    add_column_if_missing("telemetry_overlay_json")
     add_column_if_missing("error_message")
     add_column_if_missing("status")
 
@@ -144,6 +152,34 @@ def get_results_cached(key: str) -> dict[str, Any] | None:
     return json.loads(row["results_json"])
 
 
+def get_racetrace_cached(key: str) -> dict[str, Any] | None:
+    row = get_row(key)
+    if row is None or row.get("racetrace_json") is None:
+        return None
+    return json.loads(row["racetrace_json"])
+
+
+def get_stints_cached(key: str) -> dict[str, Any] | None:
+    row = get_row(key)
+    if row is None or row.get("stints_json") is None:
+        return None
+    return json.loads(row["stints_json"])
+
+
+def get_tyredeg_cached(key: str) -> dict[str, Any] | None:
+    row = get_row(key)
+    if row is None or row.get("tyredeg_json") is None:
+        return None
+    return json.loads(row["tyredeg_json"])
+
+
+def get_telemetry_overlay_cached(key: str) -> dict[str, Any] | None:
+    row = get_row(key)
+    if row is None or row.get("telemetry_overlay_json") is None:
+        return None
+    return json.loads(row["telemetry_overlay_json"])
+
+
 def set_status(key: str, status: str, *, error_message: str | None = None) -> None:
     init_db()
     now = _utc_now_iso()
@@ -172,6 +208,10 @@ def upsert_processed(
     metrics_json: str | None = None,
     insights_json: str | None = None,
     results_json: str | None = None,
+    racetrace_json: str | None = None,
+    stints_json: str | None = None,
+    tyredeg_json: str | None = None,
+    telemetry_overlay_json: str | None = None,
     error_message: str | None = None,
 ) -> None:
     init_db()
@@ -193,6 +233,20 @@ def upsert_processed(
         final_results = (
             results_json if results_json is not None else existing.get("results_json")
         )
+        final_racetrace = (
+            racetrace_json
+            if racetrace_json is not None
+            else existing.get("racetrace_json")
+        )
+        final_stints = stints_json if stints_json is not None else existing.get("stints_json")
+        final_tyredeg = (
+            tyredeg_json if tyredeg_json is not None else existing.get("tyredeg_json")
+        )
+        final_overlay = (
+            telemetry_overlay_json
+            if telemetry_overlay_json is not None
+            else existing.get("telemetry_overlay_json")
+        )
         final_error = (
             error_message
             if error_message is not None
@@ -207,6 +261,10 @@ def upsert_processed(
         final_metrics = metrics_json
         final_insights = insights_json
         final_results = results_json
+        final_racetrace = racetrace_json
+        final_stints = stints_json
+        final_tyredeg = tyredeg_json
+        final_overlay = telemetry_overlay_json
         final_error = error_message
         final_event = event_name or None
         created_at = now
@@ -218,9 +276,10 @@ def upsert_processed(
                 key, year, round, session_type, event_name,
                 status,
                 pace_json, circuit_json, metrics_json, insights_json, results_json,
+                racetrace_json, stints_json, tyredeg_json, telemetry_overlay_json,
                 error_message,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(key) DO UPDATE SET
                 year = excluded.year,
                 round = excluded.round,
@@ -232,6 +291,10 @@ def upsert_processed(
                 metrics_json = COALESCE(excluded.metrics_json, processed_session.metrics_json),
                 insights_json = COALESCE(excluded.insights_json, processed_session.insights_json),
                 results_json = COALESCE(excluded.results_json, processed_session.results_json),
+                racetrace_json = COALESCE(excluded.racetrace_json, processed_session.racetrace_json),
+                stints_json = COALESCE(excluded.stints_json, processed_session.stints_json),
+                tyredeg_json = COALESCE(excluded.tyredeg_json, processed_session.tyredeg_json),
+                telemetry_overlay_json = COALESCE(excluded.telemetry_overlay_json, processed_session.telemetry_overlay_json),
                 error_message = excluded.error_message,
                 updated_at = excluded.updated_at
             """,
@@ -247,6 +310,10 @@ def upsert_processed(
                 final_metrics,
                 final_insights,
                 final_results,
+                final_racetrace,
+                final_stints,
+                final_tyredeg,
+                final_overlay,
                 final_error,
                 created_at,
                 now,

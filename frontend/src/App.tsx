@@ -1,10 +1,18 @@
 import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { SessionPicker } from "./components/SessionPicker";
 import { PaceSpreadChart } from "./components/PaceSpreadChart";
 import { CircuitMap } from "./components/CircuitMap";
 import { InsightPanel } from "./components/InsightPanel";
-import { selectionLabel } from "./api/client";
+import { Leaderboard } from "./components/Leaderboard";
+import { RaceTraceChart } from "./components/RaceTraceChart";
+import { StintTimeline } from "./components/StintTimeline";
+import { SpeedTraceCompare } from "./components/SpeedTraceCompare";
+import { TyreDegradationChart } from "./components/TyreDegradationChart";
+import { DriverDetailDrawer } from "./components/DriverDetailDrawer";
+import { JumpNav } from "./components/JumpNav";
+import { KeyboardHelp } from "./components/KeyboardHelp";
 import { pageTransition } from "./design/tokens";
 import { useSessionStore, type SessionStoreError } from "./store/sessionStore";
 import type { PaceResponse } from "./api/types";
@@ -20,6 +28,8 @@ function errorMessage(error: SessionStoreError): string {
         return "FastF1 is temporarily unavailable. Please try again in a moment.";
       case "circuit_geometry_unavailable":
         return "Circuit geometry is not available for this session.";
+      case "invalid_driver":
+        return "That driver is not available in this session.";
       default:
         return error.message;
     }
@@ -74,15 +84,58 @@ function App() {
   const selection = useSessionStore((s) => s.selection);
   const metrics = useSessionStore((s) => s.metrics);
   const insights = useSessionStore((s) => s.insights);
+  const results = useSessionStore((s) => s.results);
+  const raceTrace = useSessionStore((s) => s.raceTrace);
+  const stints = useSessionStore((s) => s.stints);
+  const tyreDeg = useSessionStore((s) => s.tyreDeg);
+  const telemetryOverlay = useSessionStore((s) => s.telemetryOverlay);
   const selectedInsight = useSessionStore((s) => s.selectedInsight);
   const selectInsight = useSessionStore((s) => s.selectInsight);
+  const selectedDriver = useSessionStore((s) => s.selectedDriver);
+  const selectDriver = useSessionStore((s) => s.selectDriver);
   const hasLoaded = useSessionStore((s) => s.hasLoaded);
+  const globalLoading = useSessionStore((s) => s.globalLoading);
+  const loadingStep = useSessionStore((s) => s.loadingStep);
   const paceLoading = useSessionStore((s) => s.paceLoading);
   const circuitLoading = useSessionStore((s) => s.circuitLoading);
   const insightsLoading = useSessionStore((s) => s.insightsLoading);
   const paceError = useSessionStore((s) => s.paceError);
   const circuitError = useSessionStore((s) => s.circuitError);
   const insightsError = useSessionStore((s) => s.insightsError);
+  const [showHelp, setShowHelp] = useState(false);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === "?") {
+        event.preventDefault();
+        setShowHelp((v) => !v);
+      }
+      if (event.key.toLowerCase() === "j" && results?.drivers.length) {
+        event.preventDefault();
+        const idx = Math.max(
+          0,
+          results.drivers.findIndex((d) => d.abbr === selectedDriver),
+        );
+        const next = results.drivers[(idx + 1) % results.drivers.length];
+        selectDriver(next.abbr);
+      }
+      if (event.key.toLowerCase() === "k" && results?.drivers.length) {
+        event.preventDefault();
+        const idx = Math.max(
+          0,
+          results.drivers.findIndex((d) => d.abbr === selectedDriver),
+        );
+        const next = results.drivers[(idx - 1 + results.drivers.length) % results.drivers.length];
+        selectDriver(next.abbr);
+      }
+      if (event.key === "Escape") {
+        setShowHelp(false);
+        selectDriver(null);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [results, selectedDriver, selectDriver]);
 
   const fadeProps = prefersReducedMotion
     ? {
@@ -128,16 +181,24 @@ function App() {
 
         {showDashboard && (
           <motion.div className="space-y-6" {...fadeProps}>
-            <header className="pt-4">
-              <h1 className="text-section-title font-medium tracking-section-title text-text">
+            <header className="pt-4" id="hero">
+              <h1 className="text-[clamp(2.25rem,4.5vw,3.5rem)] font-medium tracking-hero text-primary">
                 {eventTitle(pace, circuit?.name ?? null)}
               </h1>
-              <p className="mt-1 text-secondary-body text-muted">
-                {selection
-                  ? selectionLabel(selection)
-                  : "Session"}
-                {paceLoading || circuitLoading ? " · loading" : ""}
+              <p className="mt-1 text-body-sm text-secondary">
+                {selection ? `${selection.year} · Round ${selection.round} · ${selection.sessionType}` : "Session"}
               </p>
+              <p className="mt-3 max-w-prose text-body text-secondary">
+                {insights?.briefing?.split("—").join(",") ?? "Telemetry-backed session briefing."}
+              </p>
+              {globalLoading && (
+                <div className="mt-4 w-72">
+                  <p className="text-caption text-secondary">{loadingStep ?? "Loading session"}</p>
+                  <div className="mt-1 h-1 rounded-pill bg-surface-3">
+                    <div className="h-full w-1/2 animate-pulse rounded-pill bg-accent/60" />
+                  </div>
+                </div>
+              )}
             </header>
 
             <div className="flex flex-col gap-8">
@@ -148,7 +209,23 @@ function App() {
                 {circuitError && !circuit && !circuitLoading && (
                   <PanelError message={errorMessage(circuitError)} />
                 )}
-                {circuit && <CircuitMap circuit={circuit} />}
+                {circuit && results && (
+                  <section id="leaderboard-circuit" className="grid gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
+                    <Leaderboard
+                      results={results}
+                      stints={stints}
+                      selectedDriver={selectedDriver}
+                      onSelectDriver={selectDriver}
+                    />
+                    <CircuitMap
+                      circuit={circuit}
+                      telemetryOverlay={telemetryOverlay}
+                      results={results}
+                      selectedDriver={selectedDriver}
+                      onSelectDriver={selectDriver}
+                    />
+                  </section>
+                )}
               </PanelShell>
 
               <PanelShell>
@@ -159,13 +236,40 @@ function App() {
                   <PanelError message={errorMessage(paceError)} />
                 )}
                 {pace && (
+                  <section id="pace">
                   <PaceSpreadChart
                     pace={pace}
                     selectedInsight={selectedInsight}
                     onSelectInsight={selectInsight}
                   />
+                  </section>
                 )}
               </PanelShell>
+
+              {raceTrace && (
+                <section id="racetrace">
+                  <RaceTraceChart
+                    data={raceTrace}
+                    selectedDriver={selectedDriver}
+                    onSelectDriver={selectDriver}
+                  />
+                </section>
+              )}
+              {stints && (
+                <section id="stints">
+                  <StintTimeline data={stints} />
+                </section>
+              )}
+              {selection && results && (
+                <section id="speedcompare">
+                  <SpeedTraceCompare selection={selection} results={results} />
+                </section>
+              )}
+              {tyreDeg && (
+                <section id="tyredeg">
+                  <TyreDegradationChart data={tyreDeg} />
+                </section>
+              )}
 
               <PanelShell>
                 {insightsLoading && !insights && (
@@ -175,17 +279,42 @@ function App() {
                   <PanelError message={errorMessage(insightsError)} />
                 )}
                 {insights && (
+                  <section id="insights">
                   <InsightPanel
                     insights={insights}
                     metrics={metrics}
                     selected={selectedInsight}
                   />
+                  </section>
                 )}
               </PanelShell>
             </div>
           </motion.div>
         )}
       </main>
+      <JumpNav
+        items={[
+          { id: "hero", label: "Hero" },
+          { id: "leaderboard-circuit", label: "Leaderboard + Circuit" },
+          { id: "pace", label: "Pace" },
+          { id: "racetrace", label: "Race trace" },
+          { id: "stints", label: "Stints" },
+          { id: "speedcompare", label: "Speed compare" },
+          { id: "tyredeg", label: "Tyre degradation" },
+          { id: "insights", label: "Insights" },
+        ]}
+      />
+      <KeyboardHelp open={showHelp} onClose={() => setShowHelp(false)} />
+      {results && (
+        <DriverDetailDrawer
+          open={!!selectedDriver}
+          driverAbbr={selectedDriver}
+          results={results}
+          stints={stints}
+          insights={insights}
+          onClose={() => selectDriver(null)}
+        />
+      )}
     </div>
   );
 }

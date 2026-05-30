@@ -1,8 +1,9 @@
 import { motion, useReducedMotion } from "framer-motion";
 import type { InsightsResponse, InsightSelection, MetricsResponse } from "../api/types";
+import { ConstructorLogo } from "./ConstructorLogo";
 
 function cleanPhrase(text: string): string {
-  return text.split("—").join("-");
+  return text.split("—").join(",");
 }
 
 interface InsightPanelProps {
@@ -47,7 +48,10 @@ export function InsightPanel({ insights, metrics, selected }: InsightPanelProps)
         <h3 className="text-label font-medium text-text">Constructors</h3>
         {constructorItems.slice(0, selected ? 1 : 6).map((item) => (
           <article key={item.id} className="rounded-inner border border-line bg-glass px-3 py-2">
-            <p className="text-label text-text">{item.id}</p>
+            <div className="flex items-center gap-2">
+              <ConstructorLogo team={item.id} />
+              <p className="text-label text-text">{item.id}</p>
+            </div>
             <p className="mt-1 text-micro text-muted">
               {renderInsightText(item.phrases, item.refined)}
             </p>

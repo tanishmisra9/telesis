@@ -12,3 +12,7 @@ class UpstreamUnavailable(Exception):
 
 class CircuitGeometryUnavailable(Exception):
     """Raised when circuit geometry cannot be built from session data."""
+
+
+class InvalidDriver(Exception):
+    """Raised when a requested driver code is invalid for the session."""

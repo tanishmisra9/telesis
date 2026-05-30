@@ -35,6 +35,45 @@ def _r_constructor_phrase(rank: int, c: dict[str, Any]) -> str:
     )
 
 
+def _build_deterministic_briefing(
+    session_type: str,
+    pace_payload: dict[str, Any],
+    metrics_payload: dict[str, Any],
+    driver_items: list[dict[str, Any]],
+) -> str:
+    session_label = "qualifying" if session_type in {"Q", "SQ"} else "race"
+    event = str(pace_payload["session"]["event"])
+    if session_type in {"Q", "SQ"} and metrics_payload.get("applicable"):
+        drivers = sorted(metrics_payload.get("drivers", []), key=lambda d: d["lap_time_s"])
+        if not drivers:
+            return f"{event} {session_label}: no complete lap metrics were available."
+        p1 = drivers[0]
+        p2_delta = (
+            f"{drivers[1]['lap_time_s'] - p1['lap_time_s']:+.3f}s"
+            if len(drivers) > 1
+            else "n/a"
+        )
+        return (
+            f"{event} {session_label}: {p1['abbr']} sets the reference at {p1['lap_time_s']:.3f}s, "
+            f"with a gap to P2 of {p2_delta}; top-speed and throttle trends align with the lead pace profile."
+        )
+
+    drivers = sorted(pace_payload.get("drivers", []), key=lambda d: d["stats"]["mean"])
+    constructors = sorted(
+        pace_payload.get("constructors", []), key=lambda c: c["stats"]["mean"]
+    )
+    if not drivers:
+        return f"{event} {session_label}: no representative race pace laps were available."
+    lead = drivers[0]
+    lead_gap = lead["gap_to_fastest_s"]
+    top_team = constructors[0]["team"] if constructors else "Unknown"
+    phrase_count = sum(len(item.get("phrases", [])) for item in driver_items[:3])
+    return (
+        f"{event} {session_label}: {lead['abbr']} leads the pace table with a mean of {lead['stats']['mean']:.3f}s "
+        f"and gap {lead_gap:+.3f}s; {top_team} tops constructor pace; {phrase_count} primary signals anchor the briefing."
+    )
+
+
 def build_insights_response(
     session_type: str,
     pace_payload: dict[str, Any],
@@ -92,5 +131,8 @@ def build_insights_response(
         "mode": "quali" if session_type in {"Q", "SQ"} else "race",
         "drivers": driver_items,
         "constructors": constructor_items,
+        "briefing": _build_deterministic_briefing(
+            session_type, pace_payload, metrics_payload, driver_items
+        ),
     }
     return get_refiner().refine(payload)

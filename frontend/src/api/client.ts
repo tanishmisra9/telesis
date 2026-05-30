@@ -3,8 +3,15 @@ import type {
   InsightsResponse,
   MetricsResponse,
   PaceResponse,
+  RaceTraceResponse,
+  ResultsResponse,
+  ScheduleResponse,
   SessionSelection,
+  SpeedTraceResponse,
+  StintsResponse,
   TelesisApiErrorBody,
+  TelemetryOverlayResponse,
+  TyreDegResponse,
 } from "./types";
 
 const API_BASE =
@@ -27,7 +34,8 @@ function isApiErrorBody(value: unknown): value is TelesisApiErrorBody {
     err === "session_not_found" ||
     err === "session_not_ready" ||
     err === "upstream_unavailable" ||
-    err === "circuit_geometry_unavailable"
+    err === "circuit_geometry_unavailable" ||
+    err === "invalid_driver"
   );
 }
 
@@ -88,6 +96,73 @@ export function getInsights(
   const type = sessionType.toUpperCase();
   const url = `${API_BASE}/sessions/${year}/${round}/${type}/insights`;
   return fetchJson<InsightsResponse>(url);
+}
+
+export function getSchedule(year: number): Promise<ScheduleResponse> {
+  const url = `${API_BASE}/schedule/${year}`;
+  return fetchJson<ScheduleResponse>(url);
+}
+
+export function getResults(
+  year: number,
+  round: number,
+  sessionType: string,
+): Promise<ResultsResponse> {
+  const type = sessionType.toUpperCase();
+  const url = `${API_BASE}/sessions/${year}/${round}/${type}/results`;
+  return fetchJson<ResultsResponse>(url);
+}
+
+export function getRaceTrace(
+  year: number,
+  round: number,
+  sessionType: string,
+): Promise<RaceTraceResponse> {
+  const type = sessionType.toUpperCase();
+  const url = `${API_BASE}/sessions/${year}/${round}/${type}/racetrace`;
+  return fetchJson<RaceTraceResponse>(url);
+}
+
+export function getStints(
+  year: number,
+  round: number,
+  sessionType: string,
+): Promise<StintsResponse> {
+  const type = sessionType.toUpperCase();
+  const url = `${API_BASE}/sessions/${year}/${round}/${type}/stints`;
+  return fetchJson<StintsResponse>(url);
+}
+
+export function getSpeedTrace(
+  year: number,
+  round: number,
+  sessionType: string,
+  abbrA: string,
+  abbrB: string,
+): Promise<SpeedTraceResponse> {
+  const type = sessionType.toUpperCase();
+  const url = `${API_BASE}/sessions/${year}/${round}/${type}/speedtrace/${abbrA}/${abbrB}`;
+  return fetchJson<SpeedTraceResponse>(url);
+}
+
+export function getTyreDeg(
+  year: number,
+  round: number,
+  sessionType: string,
+): Promise<TyreDegResponse> {
+  const type = sessionType.toUpperCase();
+  const url = `${API_BASE}/sessions/${year}/${round}/${type}/tyredeg`;
+  return fetchJson<TyreDegResponse>(url);
+}
+
+export function getTelemetryOverlay(
+  year: number,
+  round: number,
+  sessionType: string,
+): Promise<TelemetryOverlayResponse> {
+  const type = sessionType.toUpperCase();
+  const url = `${API_BASE}/sessions/${year}/${round}/${type}/telemetry-overlay`;
+  return fetchJson<TelemetryOverlayResponse>(url);
 }
 
 export function selectionLabel(sel: SessionSelection): string {
